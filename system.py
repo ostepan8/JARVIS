@@ -1,3 +1,5 @@
+from timezonefinder import TimezoneFinder
+import requests
 import asyncio
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
@@ -6,6 +8,7 @@ import os
 from openai import OpenAI
 from elevenlabs.client import ElevenLabs
 from alarmclock import EventScheduler
+from swe import SoftwareEngineer
 # Load environment variables from the .env file
 load_dotenv()
 
@@ -21,9 +24,11 @@ db = None
 openai_client = None
 elevenlabs_client = None
 scheduler = None
+swe = None
+
 
 async def initialize():
-    global mongo_client, db, openai_client, elevenlabs_client, scheduler
+    global mongo_client, db, openai_client, elevenlabs_client, scheduler, swe
 
     print("Initializing system core modules...")
 
@@ -38,10 +43,17 @@ async def initialize():
         except Exception as e:
             print(f"Error connecting to MongoDB: {e}")
             raise e
+    if swe is None:
+        try:
+            print("Feeding the Software Engineer coffee")
+            swe = SoftwareEngineer()
+        except Exception as e:
+            print("Error in Software Engineering")
+            raise e
     # Initialize OpenAI client
     if openai_client is None:
         try:
-            openai_client = OpenAI(api_key=openai_api_key)  
+            openai_client = OpenAI(api_key=openai_api_key)
         except Exception as e:
             print(f"Error initializing OpenAI client: {e}")
             raise e
@@ -49,7 +61,7 @@ async def initialize():
     # Initialize Eleven Labs client
     if elevenlabs_client is None:
         try:
-            elevenlabs_client = ElevenLabs(api_key=api_key)  
+            elevenlabs_client = ElevenLabs(api_key=api_key)
         except Exception as e:
             print(f"Error initializing Eleven Labs client: {e}")
             raise e
@@ -58,15 +70,13 @@ async def initialize():
         try:
             time_zone = get_location_timezone()
             print(time_zone)
-            scheduler = EventScheduler(time_zone = time_zone)
+            scheduler = EventScheduler(time_zone=time_zone)
             print("Schedule calibrated.")
         except Exception as e:
             print(f"Error initializing event scheduler: {e}")
             raise e
     print("All systems online.")
 
-import requests
-from timezonefinder import TimezoneFinder
 
 def get_location_timezone():
     # Step 1: Get your IP-based location using a free service
@@ -93,13 +103,19 @@ def get_location_timezone():
 def get_db():
     global db
     if db is None:
-        raise Exception("Database is not initialized. Please run the initialize function first.")
+        raise Exception(
+            "Database is not initialized. Please run the initialize function first.")
     return db
+
+
 def get_scheduler():
     global scheduler
     if scheduler is None:
-       raise Exception("Scheduler is not initialized. Please run the initialize function first.") 
+        raise Exception(
+            "Scheduler is not initialized. Please run the initialize function first.")
     return scheduler
+
+
 async def shutdown():
     global mongo_client, openai_client, elevenlabs_client
 

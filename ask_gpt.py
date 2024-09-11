@@ -10,7 +10,8 @@ db = get_db()
 interactions_collection = db['interactions']
 user_collection = db['users']
 
-def ask_gpt(question, user_personalized=False, previous_interactions=False, user_id ="ostepan8", interaction_limit=0):
+
+def ask_gpt(question, user_personalized=False, previous_interactions=False, user_id="ostepan8", interaction_limit=0):
     location_timezone = get_location_timezone()
     if location_timezone:
         # Convert the location timezone string to a pytz timezone object
@@ -25,24 +26,24 @@ def ask_gpt(question, user_personalized=False, previous_interactions=False, user
     if user_personalized:
         user_profile = user_collection.find_one({"user_id": user_id})
 
-    creator_string =""
+    creator_string = ""
     if user_personalized and user_profile:
-        creator_string = user_profile.get("name","Owen Stepan")
+        creator_string = user_profile.get("name", "Owen Stepan")
     # Initialize the base messages
     messages = [
-    {
-        "role": "system",
-        "content": (
-            "You are J.A.R.V.I.S., an intelligent assistant modeled after the AI from the Iron Man movies. "
-            f"Your job is to provide quick, concise, and accurate responses in a friendly and conversational tone, focusing on clarity and relevance to your creator, {creator_string}. "
-            f"Your creator is named Owen, not Tony Stark. Address him as Owen or {user_profile.get('preferred_title','sir')} in all communications. "
-            f"{creator_string} is highly capable, so engage in natural, friendly dialogue, avoiding overly formal language or unnecessary details. "
-            "Speak as if you’re having a casual conversation between two highly intelligent individuals. "
-            "Use natural language, contractions, and expressions that make your responses feel relaxed and approachable. "
-            "Avoid code snippets, diagrams, graphs, lists, bullet points, or any form of structured formatting. "
-            "Keep it concise, engaging, and actionable, guiding rather than instructing, and always maintain a calm, confident demeanor."
-        )
-    },
+        {
+            "role": "system",
+            "content": (
+                "You are J.A.R.V.I.S., an intelligent assistant modeled after the AI from the Iron Man movies. "
+                f"Your job is to provide quick, concise, and accurate responses in a friendly and conversational tone, focusing on clarity and relevance to your creator, {creator_string}. "
+                f"Your creator is named Owen, not Tony Stark. Address him as Owen or {user_profile.get('preferred_title','sir')} in all communications. "
+                f"{creator_string} is highly capable, so engage in natural, friendly dialogue, avoiding overly formal language or unnecessary details. "
+                "Speak as if you’re having a casual conversation between two highly intelligent individuals. "
+                "Use natural language, contractions, and expressions that make your responses feel relaxed and approachable. "
+                "Avoid code snippets, diagrams, graphs, lists, bullet points, or any form of structured formatting. "
+                "Keep it concise, engaging, and actionable, guiding rather than instructing, and always maintain a calm, confident demeanor."
+            )
+        },
 
         {
             "role": "system",
@@ -51,12 +52,14 @@ def ask_gpt(question, user_personalized=False, previous_interactions=False, user
     ]
 
     if user_profile:
-        user_data_str = f"User Profile: {user_profile}"  # Convert to a string format suitable for context
+        # Convert to a string format suitable for context
+        user_data_str = f"User Profile: {user_profile}"
         messages.append({"role": "system", "content": user_data_str})
 
     # Fetch the last 10 interactions if previous_interactions is True
     if previous_interactions:
-        recent_interactions = list(interactions_collection.find().sort("_id", -1).limit(interaction_limit))
+        recent_interactions = list(interactions_collection.find().sort(
+            "_id", -1).limit(interaction_limit))
         if recent_interactions:
             # Format the recent interactions into a readable string
             interactions_str = "Recent Interactions: " + "; ".join(
@@ -78,15 +81,17 @@ def ask_gpt(question, user_personalized=False, previous_interactions=False, user
 
     return completion.choices[0].message.content
 
-def ask_json(question, user_personalized=False, previous_interactions=False, user_id="ostepan8", interaction_limit=0):
-    local_time = datetime.now(timezone('US/Central')).strftime('%Y-%m-%d %H:%M %p')
 
-      # Initialize the base messages
+def ask_json(question, user_personalized=False, previous_interactions=False, user_id="ostepan8", interaction_limit=0):
+    local_time = datetime.now(timezone('US/Central')
+                              ).strftime('%Y-%m-%d %H:%M %p')
+
+    # Initialize the base messages
     messages = [
         {
             "role": "system",
             "content": (
-            "You are J.A.R.V.I.S., an intelligent assistant modeled after the AI from the Iron Man movies. "
+                "You are J.A.R.V.I.S., an intelligent assistant modeled after the AI from the Iron Man movies. "
             )
         },
         {
@@ -99,12 +104,14 @@ def ask_json(question, user_personalized=False, previous_interactions=False, use
     if user_personalized:
         user_profile = user_collection.find_one({"user_id": user_id})
         if user_profile:
-            user_data_str = {"User Profile": user_profile}  # Convert user profile to a JSON-like dictionary
+            # Convert user profile to a JSON-like dictionary
+            user_data_str = {"User Profile": user_profile}
             messages.append({"role": "system", "content": str(user_data_str)})
 
     # Fetch the last 10 interactions if previous_interactions is True
     if previous_interactions:
-        recent_interactions = list(interactions_collection.find().sort("_id", -1).limit(interaction_limit))
+        recent_interactions = list(interactions_collection.find().sort(
+            "_id", -1).limit(interaction_limit))
         if recent_interactions:
             # Format the recent interactions into a JSON-like string
             interactions_data = [
@@ -115,10 +122,12 @@ def ask_json(question, user_personalized=False, previous_interactions=False, use
                 }
                 for interaction in recent_interactions
             ]
-            messages.append({"role": "system", "content": str({"Recent Interactions": interactions_data})})
+            messages.append({"role": "system", "content": str(
+                {"Recent Interactions": interactions_data})})
 
     # Add the user's question, asking for a JSON-formatted response
-    messages.append({"role": "user", "content": f"Respond to the following in JSON format: {question}"})
+    messages.append(
+        {"role": "user", "content": f"Respond to the following in JSON format: {question}"})
 
     # Call GPT model to generate response
     completion = openai_client.chat.completions.create(
@@ -130,22 +139,7 @@ def ask_json(question, user_personalized=False, previous_interactions=False, use
     return completion.choices[0].message.content
 
 
-
-def get_main_intent(text):
-    # List of categories
-    categories = [
-        'Remove from schedule', 
-        'Retrieve information about schedule', 
-        'Add to schedule',
-        'Add to recurring schedule', 
-        'Home Automation', 
-        'Security and Surveillance', 
-        'System Diagnostics and Reports', 
-        'User Information Retrieval', 
-        'Control Home TV',
-        'Other'
-    ]
-
+def get_main_intent(text, categories):
 
     # Create a system message to classify the intent
     messages = [
@@ -162,7 +156,7 @@ def get_main_intent(text):
     ]
 
     response = openai_client.chat.completions.create(
-        model="gpt-4o-mini", 
+        model="gpt-4o-mini",
         messages=messages,
         max_tokens=50,
         temperature=0.2
@@ -171,7 +165,6 @@ def get_main_intent(text):
     # Correctly access the content of the response
     intent = response.choices[0].message.content.strip()
     return intent
-
 
 
 def classify_intent(text, categories, context_message=None, model="gpt-4o-mini"):
@@ -192,22 +185,24 @@ def classify_intent(text, categories, context_message=None, model="gpt-4o-mini")
         "Classify the following sentence into one of these categories: "
         f"{', '.join(categories)}."
     )
-    
+
     messages = [
         {"role": "system", "content": system_message},
         {"role": "user", "content": text}
     ]
-    
+
     response = openai_client.chat.completions.create(
-        model=model, 
+        model=model,
         messages=messages,
         max_tokens=50,
         temperature=0.2
     )
-    
+
     # Extract the classified intent
     intent = response.choices[0].message.content.strip()
     return intent
+
+
 def parse_event_string(event_string):
     # Initialize an empty dictionary to store the parsed data
     event_data = {}
@@ -232,7 +227,8 @@ def parse_event_string(event_string):
         event_data[key] = value
 
     return event_data
-          
+
+
 def extract_event_and_time(text, take_command=None, speak=None, model="gpt-4o-mini", recurrence=False):
     """
     Extract the event name, time components (year, month, day, hour, minute, period), duration, and whether the event is homework-related from the provided text.
@@ -260,7 +256,8 @@ def extract_event_and_time(text, take_command=None, speak=None, model="gpt-4o-mi
 
     # Get the current date and time in the user's time zone
     now = datetime.now(user_timezone)
-    date_string = now.strftime("%Y-%m-%d %I:%M %p %Z")  # Includes date, time, and timezone abbreviation
+    # Includes date, time, and timezone abbreviation
+    date_string = now.strftime("%Y-%m-%d %I:%M %p %Z")
 
     # Construct the recurrence part of the string
     recurrence_part = (
@@ -320,7 +317,8 @@ def extract_event_and_time(text, take_command=None, speak=None, model="gpt-4o-mi
             day = prompt_for_missing_info("day", take_command, speak)
 
     if hour == "TBD" or minute == "TBD" or period == "TBD":
-        time_input = prompt_for_missing_info("hour, minute, and period (e.g., '7:30 PM')", take_command, speak)
+        time_input = prompt_for_missing_info(
+            "hour, minute, and period (e.g., '7:30 PM')", take_command, speak)
         parsed_time = extract_time_from_string(time_input, model)
         hour = parsed_time.get("hour", "12")
         minute = parsed_time.get("minute", "00")
@@ -352,39 +350,43 @@ def prompt_for_missing_info(missing_part, take_command, speak, default=None):
         speak(f"Please specify the {missing_part}.")
     else:
         print(f"Please specify the {missing_part}.")
-    
-    input_value = take_command() if take_command else input(f"Enter the {missing_part}: ")
-    
+
+    input_value = take_command() if take_command else input(
+        f"Enter the {missing_part}: ")
+
     return input_value.strip() or default
+
+
 def extract_time_from_string(time_input, model="gpt-4o-mini"):
     prompt = (
         f"Extract the hour, minute, and period (AM/PM) from this time string: '{time_input}'. "
         "Format the response as 'Hour: [hour], Minute: [minute], Period: [AM/PM]'."
     )
-    
+
     messages = [
         {"role": "system", "content": "You are a highly intelligent assistant tasked with extracting time details from text."},
         {"role": "user", "content": prompt}
     ]
-    
+
     response = openai_client.chat.completions.create(
-        model=model, 
+        model=model,
         messages=messages,
         max_tokens=50,
         temperature=0.2
     )
-    
+
     extracted_info = response.choices[0].message.content.strip()
     hour = None
     minute = None
     period = None
-    
+
     if "Hour:" in extracted_info and "Minute:" in extracted_info and "Period:" in extracted_info:
         hour = extracted_info.split("Hour:")[1].split(",")[0].strip()
         minute = extracted_info.split("Minute:")[1].split(",")[0].strip()
         period = extracted_info.split("Period:")[1].strip()
 
     return {"hour": hour, "minute": minute, "period": period}
+
 
 def schedule_retriever_interpreter(text, take_command=None, speak=None, model="gpt-4o-mini"):
     """
@@ -401,15 +403,13 @@ def schedule_retriever_interpreter(text, take_command=None, speak=None, model="g
     today = datetime.today().strftime("%Y-%m-%d")
 
     prompt = (
-    f"Today is {today}. Analyze the following sentence: '{text}'. "
-    "If it contains an event name, respond with 'Event: [event name]'. "
-    "If it contains a time expression, respond with 'Time: [time]'. "
-    "For any time expressions, convert them to the format 'YYYY-M-D' (e.g., '2024-8-29') if they refer to a specific date. "
-    "Be aware of indirect ways of asking for time, such as 'What's on my schedule today?' or 'What's on my agenda today?'—these are actually asking for a time, not an event. "
-    "Only provide one of these two, whichever is mentioned in the sentence, and keep the response brief."
-)
-
-
+        f"Today is {today}. Analyze the following sentence: '{text}'. "
+        "If it contains an event name, respond with 'Event: [event name]'. "
+        "If it contains a time expression, respond with 'Time: [time]'. "
+        "For any time expressions, convert them to the format 'YYYY-M-D' (e.g., '2024-8-29') if they refer to a specific date. "
+        "Be aware of indirect ways of asking for time, such as 'What's on my schedule today?' or 'What's on my agenda today?'—these are actually asking for a time, not an event. "
+        "Only provide one of these two, whichever is mentioned in the sentence, and keep the response brief."
+    )
 
     messages = [
         {"role": "system", "content": "You are a concise assistant tasked with extracting either the event name or time from text."},
@@ -438,4 +438,3 @@ def schedule_retriever_interpreter(text, take_command=None, speak=None, model="g
         event_time = extracted_info.split("Time:")[1].strip()
 
     return event_name, event_time
-

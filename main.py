@@ -1,25 +1,29 @@
-import asyncio
-from system import initialize, shutdown, get_scheduler
-asyncio.run(initialize())
-import speech_recognition as sr
-import time
-import pvporcupine
-import struct
-import pyaudio
-import pyttsx3
-import numpy as np
-import simpleaudio as sa
-from elevenlabs import play
-from interactions import analyze_and_update_profile, store_interaction
-from scheduling import handle_add_to_schedule, handle_remove_from_schedule, handle_retrieve_information, handle_add_to_recurring_schedule, handle_remove_from_recurring_schedule, handle_retrieve_recurring_information
-from ask_gpt import get_main_intent, ask_gpt
-from tv_controller import handle_tv_command
 import re
+from tv_controller import handle_tv_command
+from ask_gpt import get_main_intent, ask_gpt
+from scheduling import handle_add_to_schedule, handle_remove_from_schedule, handle_retrieve_information, handle_add_to_recurring_schedule, handle_remove_from_recurring_schedule, handle_retrieve_recurring_information
+from interactions import analyze_and_update_profile, store_interaction
+from elevenlabs import play
+import simpleaudio as sa
+import numpy as np
+import pyttsx3
+import pyaudio
+import struct
+import pvporcupine
+import time
+import speech_recognition as sr
+import asyncio
+from system import initialize, swe, get_scheduler
+
+asyncio.run(initialize())
 USER = "sir"
 scheduler = get_scheduler()
+
+
 def speak(text):
     audio = client.generate(text=text, voice="George")
     play(audio)
+
 
 def play_beep():
     frequency = 1000  # Frequency of the beep (in Hz)
@@ -31,6 +35,7 @@ def play_beep():
     beep = beep.astype(np.int16)
     play_obj = sa.play_buffer(beep, 1, 2, sample_rate)
     play_obj.wait_done()
+
 
 def takeCommand():
     r = sr.Recognizer()
@@ -56,25 +61,41 @@ def ConversationFlow(test_mode=False, user_id="ostepan8"):
     userSaid = input("Enter your command: ") if test_mode else takeCommand()
 
     if userSaid:
-        # Assume this is where you're getting the intent
-        intent = get_main_intent(userSaid)
+        # List of categories
+        categories = [
+            'Remove from schedule',
+            'Retrieve information about schedule',
+            'Add to schedule',
+            'Add to recurring schedule',
+            'Home Automation',
+            'Security and Surveillance',
+            'System Diagnostics and Reports',
+            'User Information Retrieval',
+            'Control Home TV',
+            'Software Engineering',
+            'Other'
+        ]
+        intent = get_main_intent(userSaid, categories)
 
         # Remove any characters that aren't part of the alphabet
         intent = re.sub(r'[^a-zA-Z\s]', '', intent)
 
         print(intent)
-        response=""
+        response = ""
         if intent == "Remove from schedule":
             if test_mode:
-                response = handle_remove_from_schedule(userSaid, take_command=input, speak=print)
+                response = handle_remove_from_schedule(
+                    userSaid, take_command=input, speak=print)
             else:
-                response = handle_remove_from_schedule(userSaid, take_command, speak)
+                response = handle_remove_from_schedule(
+                    userSaid, take_command, speak)
             scheduler.initialize()
         elif intent == "Retrieve information about schedule":
             # Retrieve the schedule information
             if test_mode:
                 # In test mode, call the function with input/output handlers
-                events_summary = handle_retrieve_information(userSaid, take_command=input, speak=print)
+                events_summary = handle_retrieve_information(
+                    userSaid, take_command=input, speak=print)
             else:
                 # In regular mode, call the function without input/output handlers
                 events_summary = handle_retrieve_information(userSaid)
@@ -87,64 +108,71 @@ def ConversationFlow(test_mode=False, user_id="ostepan8"):
 
         elif intent == "Add to schedule":
             if test_mode:
-                response = handle_add_to_schedule(userSaid, take_command=input, speak=print)
+                response = handle_add_to_schedule(
+                    userSaid, take_command=input, speak=print)
             else:
-                response = handle_add_to_schedule(userSaid, take_command, speak)
+                response = handle_add_to_schedule(
+                    userSaid, take_command, speak)
             scheduler.initialize()
         elif intent == "Add to recurring schedule":
             if test_mode:
-                response = handle_add_to_recurring_schedule(userSaid, take_command=input, speak=print)
+                response = handle_add_to_recurring_schedule(
+                    userSaid, take_command=input, speak=print)
             else:
-                response = handle_add_to_recurring_schedule(userSaid, take_command, speak)
+                response = handle_add_to_recurring_schedule(
+                    userSaid, take_command, speak)
             scheduler.initialize()
         elif intent == "Control Home TV":
             handle_tv_command(userSaid)
-            
-            
+            response = "On it, sir"
+        elif intent == "Software Engineering":
+            # start software engineering
+            print('sweing')
+
             # response = handle_home_automation(userSaid)
             # if test_mode:
-                # print(f"Home Automation Response: {home_automation_response}")
+            # print(f"Home Automation Response: {home_automation_response}")
             # else:
-                # speak(home_automation_response)
-        
+            # speak(home_automation_response)
+
         # elif intent == "Security and Surveillance":
             # response = handle_security(userSaid)
             # if test_mode:
-                # print(f"Security Response: {security_response}")
+            # print(f"Security Response: {security_response}")
             # else:
-                # speak(security_response)
-        
+            # speak(security_response)
+
         # elif intent == "System Diagnostics and Reports":
             # response = handle_system_diagnostics(userSaid)
             # if test_mode:
-                # print(f"Diagnostics Response: {diagnostics_response}")
+            # print(f"Diagnostics Response: {diagnostics_response}")
             # else:
-                # speak(diagnostics_response)
-        
+            # speak(diagnostics_response)
+
         else:
-            response = ask_gpt(userSaid, user_personalized= True, previous_interactions=True, interaction_limit=10)
+            response = ask_gpt(userSaid, user_personalized=True,
+                               previous_interactions=True, interaction_limit=10)
         if test_mode:
             print(f"{response}")
         else:
             speak(response)
         store_interaction(user_id, userSaid, response, intent)
         analyze_and_update_profile(user_id, userSaid, response)
-        
 
 
-
-def main(test = False):
+def main(test=False):
     porcupine = None
     pa = None
     audio_stream = None
 
     print("Ready for your commands, sir.")
-    if(test):
+    if (test):
         while True:
             ConversationFlow(test)
     else:
         try:
-            porcupine = pvporcupine.create(keywords=["jarvis"], access_key=access_key)
+            porcupine = pvporcupine.create(
+                keywords=["jarvis"], access_key=access_key)
             pa = pyaudio.PyAudio()
             audio_stream = pa.open(
                 rate=porcupine.sample_rate,
@@ -169,6 +197,7 @@ def main(test = False):
                 audio_stream.close()
             if pa is not None:
                 pa.terminate()
+
 
 if __name__ == "__main__":
     # Now run the main function after initialize completes

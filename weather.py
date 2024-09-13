@@ -76,16 +76,25 @@ def format_weather_response(data):
     city = data['name']
     country = data['sys']['country']
     weather_description = data['weather'][0]['description']
-    temp = data['main']['temp']
-    feels_like = data['main']['feels_like']
-    temp_min = data['main']['temp_min']
-    temp_max = data['main']['temp_max']
+    temp_celsius = data['main']['temp']
+    feels_like_celsius = data['main']['feels_like']
+    temp_min_celsius = data['main']['temp_min']
+    temp_max_celsius = data['main']['temp_max']
     humidity = data['main']['humidity']
-    wind_speed = data['wind']['speed']
+    wind_speed_mps = data['wind']['speed']
     wind_deg = data['wind']['deg']
     visibility = data['visibility']
     sunrise_unix = data['sys']['sunrise']
     sunset_unix = data['sys']['sunset']
+
+    # Convert temperatures from Celsius to Fahrenheit
+    temp = (temp_celsius * 9/5) + 32
+    feels_like = (feels_like_celsius * 9/5) + 32
+    temp_min = (temp_min_celsius * 9/5) + 32
+    temp_max = (temp_max_celsius * 9/5) + 32
+
+    # Convert wind speed from m/s to mph
+    wind_speed = wind_speed_mps * 2.237
 
     # Convert Unix timestamps to human-readable time in UTC
     utc_time = datetime.fromtimestamp(sunrise_unix, timezone.utc)
@@ -110,22 +119,5 @@ def format_weather_response(data):
     return response
 
 
-# Example usage
-weather_data = {
-    'coord': {'lon': -71.0598, 'lat': 42.3584},
-    'weather': [{'id': 801, 'main': 'Clouds', 'description': 'few clouds', 'icon': '02d'}],
-    'base': 'stations',
-    'main': {'temp': 69.57, 'feels_like': 69.57, 'temp_min': 67.95, 'temp_max': 71.38, 'pressure': 1024, 'humidity': 71, 'sea_level': 1024, 'grnd_level': 1020},
-    'visibility': 10000,
-    'wind': {'speed': 6.92, 'deg': 250},
-    'clouds': {'all': 20},
-    'dt': 1726234774,
-    'sys': {'type': 1, 'id': 3486, 'country': 'US', 'sunrise': 1726222958, 'sunset': 1726268258},
-    'timezone': -14400,
-    'id': 4930956,
-    'name': 'Boston',
-    'cod': 200
-}
-
-formatted_response = format_weather_response(weather_data)
+formatted_response = format_weather_response(get_free_weather(api_key=api_key))
 print(formatted_response)

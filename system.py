@@ -25,10 +25,11 @@ openai_client = None
 elevenlabs_client = None
 scheduler = None
 swe = None
+time_zone = None
 
 
 async def initialize():
-    global mongo_client, db, openai_client, elevenlabs_client, scheduler, swe
+    global time_zone, mongo_client, db, openai_client, elevenlabs_client, scheduler, swe
 
     print("Initializing system core modules...")
 

@@ -1,3 +1,7 @@
+from system import initialize
+import asyncio
+asyncio.run(initialize())
+from system import initialize, elevenlabs_client, get_scheduler
 import re
 from tv_controller import handle_tv_command
 from ask_gpt import get_main_intent, ask_gpt
@@ -12,16 +16,21 @@ import struct
 import pvporcupine
 import time
 import speech_recognition as sr
-import asyncio
-from system import initialize, swe, get_scheduler
+from dotenv import load_dotenv
+import os
+from file_system import handle_file_system
+# Load environment variables from the .env file
+load_dotenv()
 
-asyncio.run(initialize())
+# Retrieve access keys from the environment variables
+access_key = os.getenv('PORCUPINE_API_KEY')
+
 USER = "sir"
 scheduler = get_scheduler()
 
 
 def speak(text):
-    audio = client.generate(text=text, voice="George")
+    audio = elevenlabs_client.generate(text=text, voice="George")
     play(audio)
 
 
@@ -38,6 +47,7 @@ def play_beep():
 
 
 def takeCommand():
+    print("take command")
     r = sr.Recognizer()
     play_beep()
     with sr.Microphone() as source:
@@ -73,14 +83,16 @@ def ConversationFlow(test_mode=False, user_id="ostepan8"):
             'User Information Retrieval',
             'Control Home TV',
             'Software Engineering',
-            'Other'
+            'File System',
+            'Other',
+
         ]
         intent = get_main_intent(userSaid, categories)
 
         # Remove any characters that aren't part of the alphabet
         intent = re.sub(r'[^a-zA-Z\s]', '', intent)
 
-        print(intent)
+      
         response = ""
         if intent == "Remove from schedule":
             if test_mode:
@@ -128,6 +140,8 @@ def ConversationFlow(test_mode=False, user_id="ostepan8"):
         elif intent == "Software Engineering":
             # start software engineering
             print('sweing')
+        elif intent == "File System":
+            handle_file_system(userSaid)
 
             # response = handle_home_automation(userSaid)
             # if test_mode:

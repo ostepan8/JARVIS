@@ -91,7 +91,7 @@ def ConversationFlow(test_mode=False, user_id="ostepan8"):
 
         # Remove any characters that aren't part of the alphabet
         intent = re.sub(r'[^a-zA-Z\s]', '', intent)
-
+        print(intent)
       
         response = ""
         if intent == "Remove from schedule":

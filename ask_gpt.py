@@ -139,21 +139,45 @@ def ask_json(question, user_personalized=False, previous_interactions=False, use
     return completion.choices[0].message.content
 
 
-def get_main_intent(text, categories):
-
+def get_main_intent(text, categories, previous_interactions=True):
     # Create a system message to classify the intent
     messages = [
-        {
-            "role": "system",
-            "content": (
-                "You are an intelligent assistant. Classify the following sentence into one of these categories: "
-                + ", ".join(f"'{category}'" for category in categories) + ". "
-                "Consider 'recurring schedule' to refer to events that happen regularly, such as daily, weekly, or monthly events."
-                "Finding a remote counts as'Control Home TV'"
-            )
-        },
-        {"role": "user", "content": text}
+    {
+        "role": "system",
+        "content": (
+            "You are an intelligent assistant. Your task is to classify the following sentence into exactly one of the following categories: "
+            + ", ".join(f"'{category}'" for category in categories) + ". "
+            "Return only the name of the category that best fits the given sentence, and nothing else. "
+            "When making your decision, consider the context provided by recent interactions to infer the user's current preferences and priorities. "
+            "For example, if a recent interaction involved scheduling a recurring event, give higher weight to the 'recurring schedule' category. "
+            "Similarly, if a recent interaction involved controlling a TV, give higher weight to categories like 'Control Home TV'. "
+            "Remember that 'recurring schedule' refers to events that happen regularly (such as daily, weekly, or monthly), and that 'Finding a remote' counts as 'Control Home TV'. "
+            "Under no circumstances should you provide explanations, multiple categories, or any text other than the name of the category. Your response must be a single string containing only one of the categories."
+        )
+    },
+    {"role": "user", "content": text}
     ]
+
+
+    # Fetch the last 3 interactions if previous_interactions is True
+    if previous_interactions:
+        recent_interactions = list(interactions_collection.find().sort("_id", -1).limit(3))
+        if recent_interactions:
+            # Format the recent interactions into a readable string
+            interactions_str = "Recent Interactions: " + "; ".join(
+                [
+                    f"[{interaction['timestamp'].strftime('%Y-%m-%d %H:%M:%S')}]: User said: '{interaction['user_input']}', Assistant responded: '{interaction['response']}'"
+                    for interaction in recent_interactions
+                ]
+            )
+            messages.append(
+                {
+                    "role": "system",
+                    "content": (
+                        f"Use the recent interactions to understand the user's current needs and preferences, especially if the new input is unclear: {interactions_str}"
+                    ),
+                }
+            )
 
     response = openai_client.chat.completions.create(
         model="gpt-4o-mini",
@@ -165,6 +189,7 @@ def get_main_intent(text, categories):
     # Correctly access the content of the response
     intent = response.choices[0].message.content.strip()
     return intent
+
 
 
 def classify_intent(text, categories, context_message=None, model="gpt-4o-mini"):
@@ -290,7 +315,7 @@ def extract_event_and_time(text, take_command=None, speak=None, model="gpt-4o-mi
     )
 
     extracted_info = response.choices[0].message.content.strip()
-    print(extracted_info)
+    
     response_object = (parse_event_string(extracted_info))
 
     # Initialize default values

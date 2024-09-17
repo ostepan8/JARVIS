@@ -2,15 +2,16 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime, timedelta
 from pytz import utc, timezone
 
+
 class EventScheduler:
     def __init__(self, time_zone='US/Central'):
         # Initialize the scheduler
         self.scheduler = BackgroundScheduler(timezone=utc)
         self.scheduler.start()
-        
+
         # Store the time zone for use throughout the class
         self.time_zone = timezone(time_zone)
-        
+
         # Initialize the scheduler
         self.initialize(True)
 
@@ -22,7 +23,7 @@ class EventScheduler:
 
         from scheduling import get_upcoming_events
         events = get_upcoming_events(recurr=False)
-        
+
         # Get the current time in the specified time zone
         current_time = datetime.now(self.time_zone)
 
@@ -40,12 +41,10 @@ class EventScheduler:
             else:
                 future_events.append(event)
 
-
         self.sorted_non_recurring_events = sorted(
             future_events, key=lambda x: self.parse_event_time(x['event_time'])
         )
         self.remove_non_recurring_from_db(past_events)
-
 
         self.recurring_events = get_upcoming_events(recurr=True)
         self.schedule_next_earliest_event()
@@ -53,20 +52,21 @@ class EventScheduler:
     def schedule_alarm(self, event_time_str, callback, event_name):
         """
         Schedule an alarm to trigger at the specified event time.
-        
+
         Parameters:
         - event_time_str: The event time as a string in the format "yyyy-mm-dd H:MM am/pm".
         - callback: The function to call when the alarm triggers.
         - event_name: The name of the event.
         """
-        from pytz import utc, timezone  # Import UTC and local timezone from pytz
+        from pytz import utc
         from datetime import datetime
 
         # Define your local timezone (e.g., 'America/Chicago')
-        local_tz = self.time_zone 
+        local_tz = self.time_zone
 
         # Parse the event time string to a datetime object
-        event_time_local = datetime.strptime(event_time_str, '%Y-%m-%d %I:%M %p')
+        event_time_local = datetime.strptime(
+            event_time_str, '%Y-%m-%d %I:%M %p')
 
         # Make the datetime object timezone-aware
         event_time_local = local_tz.localize(event_time_local)
@@ -79,10 +79,11 @@ class EventScheduler:
             callback,
             'date',
             run_date=event_time_utc,
-            args=[event_name]  # Make sure the args match the function's parameters
+            # Make sure the args match the function's parameters
+            args=[event_name]
         )
-        print(f"Alarm set for: {event_time_local.strftime('%Y-%m-%d %I:%M %p')} Eastern Time - Event: {event_name}")
-
+        print(
+            f"Alarm set for: {event_time_local.strftime('%Y-%m-%d %I:%M %p')} Eastern Time - Event: {event_name}")
 
     def parse_event_time(self, event_time_str):
         """
@@ -94,14 +95,12 @@ class EventScheduler:
         # Localize the naive datetime to the specified time zone
         return self.time_zone.localize(naive_datetime)
 
-
     def find_next_earliest_event(self):
         """
         Find the next earliest event from the combined list of regular and recurring events.
         """
         # Get the current time in the specified time zone and make it timezone-aware
         current_time = datetime.now(self.time_zone).replace(microsecond=0)
-
 
         # Initialize variables to store the earliest events
         earliest_non_recurring = None
@@ -110,36 +109,35 @@ class EventScheduler:
         recurring_time = None
         nonrecurring_time_dt = None
         recurring_time_dt = None
-        if(self.sorted_non_recurring_events):
+        if (self.sorted_non_recurring_events):
             earliest_non_recurring = self.sorted_non_recurring_events[0]
             non_recurring_time = earliest_non_recurring.get("event_time")
-            nonrecurring_time_dt = datetime.strptime(non_recurring_time, '%Y-%m-%d %I:%M %p')
+            nonrecurring_time_dt = datetime.strptime(
+                non_recurring_time, '%Y-%m-%d %I:%M %p')
 
         # Find the earliest recurring event
         if self.recurring_events:
             earliest_recurring_event, day = self.find_earliest_recurring_event()
-            recurring_time = self.recurring_event_into_time_string(earliest_recurring_event, day)
-            recurring_time_dt = datetime.strptime(recurring_time, '%Y-%m-%d %I:%M %p')
+            recurring_time = self.recurring_event_into_time_string(
+                earliest_recurring_event, day)
+            recurring_time_dt = datetime.strptime(
+                recurring_time, '%Y-%m-%d %I:%M %p')
 
         # Compare and return the earliest event
         if nonrecurring_time_dt and recurring_time_dt:
             if nonrecurring_time_dt <= recurring_time_dt:
-                print(nonrecurring_time_dt, "RETURNING EARLIEST NON-RECURRING EVENT")
+
                 return earliest_non_recurring, non_recurring_time
             else:
-                print(recurring_time, "RETURNING EARLIEST RECURRING EVENT")
-                return earliest_recurring_event,recurring_time
+                return earliest_recurring_event, recurring_time
         elif nonrecurring_time_dt:
-            print(earliest_nonrecurring, "RETURNING EARLIEST NON-RECURRING EVENT (NO RECURRING EVENTS)")
-            return earliest_nonrecurring,non_recurring_time
+            return earliest_non_recurring, non_recurring_time
         elif recurring_time_dt:
-            print(recurring_time, "RETURNING EARLIEST RECURRING EVENT (NO NON-RECURRING EVENTS)")
+
             return earliest_recurring_event, recurring_time
         else:
-            print("NO EVENTS FOUND")
-            return None, None
 
-    
+            return None, None
 
     def find_earliest_recurring_event(self):
         """
@@ -148,39 +146,38 @@ class EventScheduler:
         from datetime import datetime, timedelta
         # Get the current time
         current_time = datetime.now()
-        days_of_week = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-        current_day_index = days_of_week.index(current_time.strftime('%A').lower())
+        days_of_week = ['monday', 'tuesday', 'wednesday',
+                        'thursday', 'friday', 'saturday', 'sunday']
+        current_day_index = days_of_week.index(
+            current_time.strftime('%A').lower())
 
         # Reorder days of the week so that today is at index 0
-        reordered_days = days_of_week[current_day_index:] + days_of_week[:current_day_index]
+        reordered_days = days_of_week[current_day_index:] + \
+            days_of_week[:current_day_index]
 
         # Initialize variables to store the earliest event details
         min_time = float('inf')
         earliest_event = None
         earliest_day = None
 
-
-
         # Loop through the reordered days of the week
         for day in reordered_days:
             # Loop through each recurring event
             for event in self.recurring_events:
                 # Get the recurrence types for this event
-                recurrence_types = event.get('recurrence_type', '').lower().split('/')
+                recurrence_types = event.get(
+                    'recurrence_type', '').lower().split('/')
 
                 # Check if the event recurs on this day
                 if any(recurrence_type.split(' ')[1] == day for recurrence_type in recurrence_types):
                     # Get the event time in minutes past midnight
                     event_time_str = event.get('event_time', '')
                     event_minutes = self.convert_time_to_number(event_time_str)
-
                     # Calculate current time in minutes past midnight
                     current_minutes = current_time.hour * 60 + current_time.minute
-
                     # Adjust for events occurring later today
                     if day == reordered_days[0] and event_minutes < current_minutes:
                         continue  # Skip past events on the current day
-
                     # Find the earliest event time for the matching day
                     if event_minutes < min_time:
                         min_time = event_minutes
@@ -190,9 +187,7 @@ class EventScheduler:
             # If we found an event for today or any day after today, break the loop
             if earliest_event:
                 break
-
         return earliest_event, earliest_day
-
 
     def convert_time_to_number(self, time_str):
         """
@@ -205,56 +200,86 @@ class EventScheduler:
         # Convert to minutes past midnight
         minutes = time_obj.hour * 60 + time_obj.minute
         return minutes
-    
-    def recurring_event_into_time_string(self, event, current_day):
 
-        from datetime import datetime, timedelta
-        from bson import ObjectId
-
+    def recurring_event_into_time_string(self, event, current_day, now=None):
         """
-        Returns the next occurrence of the event in the format "yyyy-mm-dd H:MM am/pm".
-        
+        Returns the next occurrence of the event on the specified day in the format "yyyy-mm-dd H:MM AM/PM".
+
         Parameters:
+        - self: The instance of the class (to access self.time_zone).
         - event: A dictionary containing event details.
-        - current_day: A lowercase string representing the current day of the week.
+        - current_day: A string representing the day of interest (e.g., 'Monday', 'Tuesday', etc.)
+        - now: Optional datetime object representing the current time, for testing purposes.
         """
-        # Extract event details
+        import pytz
         event_time_str = event.get('event_time', '')
         recurrence_type = event.get('recurrence_type', '').lower()
-        
-        # Convert event time string to a datetime object for formatting
-        event_time = datetime.strptime(event_time_str, '%I:%M %p')
 
-        # Get the current day of the week as an integer (Monday=0, ..., Sunday=6)
-        current_day_index = datetime.strptime(current_day.capitalize(), '%A').weekday()
+        try:
+            event_time = datetime.strptime(event_time_str, '%I:%M %p').time()
+        except ValueError:
+            return "Invalid event time format."
 
-        # Parse recurrence type to get days of the week
-        recurrence_days = [day.strip().split()[1].lower() for day in recurrence_type.split('/') if day.strip().startswith('weekly')]
-        recurrence_days_indices = [datetime.strptime(day.capitalize(), '%A').weekday() for day in recurrence_days]
+        # Parse recurrence_type to get list of recurrence days
+        recurrence_days = []
+        for part in recurrence_type.split('/'):
+            part = part.strip()
+            if part.startswith('weekly'):
+                tokens = part.split()
+                if len(tokens) == 2:
+                    day_name = tokens[1].capitalize()
+                    recurrence_days.append(day_name)
+                else:
+                    return "Invalid recurrence type format."
+            else:
+                return "Unsupported recurrence type."
 
-        # Check if the provided day is in the recurrence days
-        if current_day.lower() not in recurrence_days:
+        current_day_cap = current_day.capitalize()
+        if current_day_cap not in recurrence_days:
             return "The event does not recur on the specified day."
 
-        # Find the next occurrence day index
-        today = datetime.now()
-        today_index = today.weekday()
+        if isinstance(self.time_zone, str):
+            tz = pytz.timezone(self.time_zone)
+        else:
+            tz = self.time_zone
+        if now is None:
+            now = datetime.now(tz)
+        else:
+            now = tz.localize(now)
+        today = now.date()
 
-        # Calculate the number of days until the next occurrence of the specified day
-        days_until_next_occurrence = (current_day_index - today_index) % 7
+        # Build an ordered list of days starting from today
+        days_of_week = ['Monday', 'Tuesday', 'Wednesday',
+                        'Thursday', 'Friday', 'Saturday', 'Sunday']
+        today_weekday_index = today.weekday()  # Monday = 0, Sunday = 6
+        ordered_days = days_of_week[today_weekday_index:] + \
+            days_of_week[:today_weekday_index]
+
+        # Find the number of days until the next occurrence of the current_day
+        for index, day in enumerate(ordered_days):
+            if day == current_day_cap:
+                days_until_event = index
+                break
+        else:
+            return "Error finding the day in the ordered list."
 
         # Calculate the date of the next occurrence
-        next_occurrence_date = today + timedelta(days=days_until_next_occurrence)
+        next_occurrence_date = today + timedelta(days=days_until_event)
 
         # Combine the next occurrence date with the event time
-        next_event_time = next_occurrence_date.replace(hour=event_time.hour, minute=event_time.minute)
+        event_datetime = datetime.combine(next_occurrence_date, event_time)
+        event_datetime = tz.localize(event_datetime)
+
+        # Check if the event is scheduled for today and the time has already passed
+        if days_until_event == 0 and now >= event_datetime:
+            next_occurrence_date += timedelta(days=7)
+            event_datetime = datetime.combine(next_occurrence_date, event_time)
+            event_datetime = tz.localize(event_datetime)
 
         # Format the output time string
-        formatted_time = next_event_time.strftime('%Y-%m-%d %I:%M %p')
+        formatted_time = event_datetime.strftime('%Y-%m-%d %I:%M %p')
 
         return formatted_time
-
-
 
     def schedule_next_earliest_event(self):
         """
@@ -265,7 +290,8 @@ class EventScheduler:
 
         if next_event:
             self.event = next_event
-            self.schedule_alarm(time_of_next_event, self.wake_up_alarm, next_event.get("description"))
+            self.schedule_alarm(
+                time_of_next_event, self.wake_up_alarm, next_event.get("description"))
         else:
             print("Nothing scheduled for today.")
 
@@ -278,17 +304,13 @@ class EventScheduler:
         # After the alarm triggers, schedule the next one after some time
         self.initialize()
         # delete event
+
     def remove_non_recurring_from_db(self, past_events):
         from scheduling import remove_event
-        
+
         for item in past_events:
             # Extract the event's ID
             event_id = str(item['_id'])
-            
+
             # Remove the event from the database
             result = remove_event(event_id=event_id)
-            
-            # Optionally, print the result of each removal
-            print(result)
-
-

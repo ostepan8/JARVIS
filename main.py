@@ -1,24 +1,24 @@
-from system import initialize
 import asyncio
-asyncio.run(initialize())
-from system import initialize, elevenlabs_client, get_scheduler
+from system import initialize
+asyncio.run(initialize())  # noqa
+from interactions import analyze_and_update_profile, store_interaction
+from system import initialize, elevenlabs_client, get_scheduler, swe
 import re
 from tv_controller import handle_tv_command
 from ask_gpt import get_main_intent, ask_gpt
-from scheduling import handle_add_to_schedule, handle_remove_from_schedule, handle_retrieve_information, handle_add_to_recurring_schedule, handle_remove_from_recurring_schedule, handle_retrieve_recurring_information
-from interactions import analyze_and_update_profile, store_interaction
+from scheduling import handle_add_to_schedule, handle_remove_from_schedule, summarize_events, handle_add_to_recurring_schedule
 from elevenlabs import play
 import simpleaudio as sa
 import numpy as np
-import pyttsx3
 import pyaudio
 import struct
 import pvporcupine
-import time
 import speech_recognition as sr
 from dotenv import load_dotenv
 import os
 from file_system import handle_file_system
+import threading
+
 # Load environment variables from the .env file
 load_dotenv()
 
@@ -67,8 +67,13 @@ def takeCommand():
 
 
 def ConversationFlow(test_mode=False, user_id="ostepan8"):
-    # If in test mode, use input() to get the user's text input from the terminal
-    userSaid = input("Enter your command: ") if test_mode else takeCommand()
+    def jarvis_input(prompt_message: str) -> str:
+        return input(prompt_message+"\n") if test_mode else takeCommand()
+
+    def jarvis_output(prompt_message: str):
+        return print(prompt_message) if test_mode else takeCommand(prompt_message)
+
+    userSaid = jarvis_input("Enter your command: ")
 
     if userSaid:
         # List of categories
@@ -82,7 +87,7 @@ def ConversationFlow(test_mode=False, user_id="ostepan8"):
             'System Diagnostics and Reports',
             'User Information Retrieval',
             'Control Home TV',
-            'Software Engineering',
+            'Software Project Management and Help',
             'File System',
             'Other',
 
@@ -91,55 +96,26 @@ def ConversationFlow(test_mode=False, user_id="ostepan8"):
 
         # Remove any characters that aren't part of the alphabet
         intent = re.sub(r'[^a-zA-Z\s]', '', intent)
-        print(intent)
-      
         response = ""
         if intent == "Remove from schedule":
-            if test_mode:
-                response = handle_remove_from_schedule(
-                    userSaid, take_command=input, speak=print)
-            else:
-                response = handle_remove_from_schedule(
-                    userSaid, take_command, speak)
+            response = handle_remove_from_schedule(
+                userSaid, take_command=input, speak=jarvis_output)
             scheduler.initialize()
         elif intent == "Retrieve information about schedule":
-            # Retrieve the schedule information
-            if test_mode:
-                # In test mode, call the function with input/output handlers
-                events_summary = handle_retrieve_information(
-                    userSaid, take_command=input, speak=print)
-            else:
-                # In regular mode, call the function without input/output handlers
-                events_summary = handle_retrieve_information(userSaid)
-
-            # Prepare the question for GPT to JARVIS-ify the response
-            question = f"J.A.R.V.I.S., respond to the following request from Tony Stark with a brief, natural, and conversational tone. Follow these rules: sort events by time of day, only mention events relevant to today, and avoid using any lists, bullet points, or formatting. Keep it concise and focused on the essentials. The original question is: '{userSaid}'. The schedule details are: '{events_summary}'."
-
-            # Call ask_gpt to generate a JARVIS-like response
-            response = ask_gpt(question, user_personalized=True)
-
+            response = summarize_events(userSaid, jarvis_input, jarvis_output)
         elif intent == "Add to schedule":
-            if test_mode:
-                response = handle_add_to_schedule(
-                    userSaid, take_command=input, speak=print)
-            else:
-                response = handle_add_to_schedule(
-                    userSaid, take_command, speak)
+            response = handle_add_to_schedule(
+                userSaid, take_command=jarvis_input, speak=jarvis_output)
             scheduler.initialize()
         elif intent == "Add to recurring schedule":
-            if test_mode:
-                response = handle_add_to_recurring_schedule(
-                    userSaid, take_command=input, speak=print)
-            else:
-                response = handle_add_to_recurring_schedule(
-                    userSaid, take_command, speak)
+            response = handle_add_to_recurring_schedule(
+                userSaid, take_command=jarvis_input, speak=jarvis_output)
             scheduler.initialize()
         elif intent == "Control Home TV":
             handle_tv_command(userSaid)
             response = "On it, sir"
-        elif intent == "Software Engineering":
-            # start software engineering
-            print('sweing')
+        elif intent == "Software Project Management and Help":
+            swe.handle_swe_input(userSaid, jarvis_input, jarvis_output)
         elif intent == "File System":
             handle_file_system(userSaid)
 
@@ -166,12 +142,11 @@ def ConversationFlow(test_mode=False, user_id="ostepan8"):
         else:
             response = ask_gpt(userSaid, user_personalized=True,
                                previous_interactions=True, interaction_limit=10)
-        if test_mode:
-            print(f"{response}")
-        else:
-            speak(response)
+        jarvis_output(response)
         store_interaction(user_id, userSaid, response, intent)
-        analyze_and_update_profile(user_id, userSaid, response)
+        thread = threading.Thread(
+            target=analyze_and_update_profile, args=(user_id, userSaid, response))
+        thread.start()
 
 
 def main(test=False):

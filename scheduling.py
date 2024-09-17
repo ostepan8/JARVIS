@@ -1,28 +1,29 @@
-import re
-from language_process import extract_and_parse_time, parse_event
+
 from bson import ObjectId
 from concurrent.futures import ThreadPoolExecutor
-from ask_gpt import classify_intent, extract_event_and_time, schedule_retriever_interpreter
+from ask_gpt import extract_event_and_time, schedule_retriever_interpreter
 from datetime import datetime
-from pytz import utc
-from system import get_db
+import pytz
+from system import get_db, get_location_timezone
 db = get_db()
 
 events_collection = db['schedule']
-recurring_events_collection =  db['recurring']
+recurring_events_collection = db['recurring']
 
 # Function to retrieve all future regular and recurring events
-def get_upcoming_events(recurr = False):
+
+
+def get_upcoming_events(recurr=False):
     return_events = None
-    if(recurr):
+    if (recurr):
         return_events = list(recurring_events_collection.find())
     else:
-        return_events = list(events_collection.find()) 
+        return_events = list(events_collection.find())
     return return_events
 
 
 # Function to set reminders, alarms, and calendar events
-def set_event(event_time, event_name, duration,is_homework):
+def set_event(event_time, event_name, duration, is_homework):
     # Insert event into the MongoDB collection
     event = {
         "description": event_name,
@@ -31,20 +32,24 @@ def set_event(event_time, event_name, duration,is_homework):
         "is_homework": is_homework
     }
     events_collection.insert_one(event)
-    
+
     return f"{event_name.capitalize()} set for {event_time}."
 
 # Function to retrieve events based on a time query or event description
+
+
 def get_events(query):
     # Try finding events by event time
-    events_by_time = list(events_collection.find({"event_time": {"$regex": query, "$options": "i"}}))
-    events_by_name = list(events_collection.find({"description": {"$regex": query, "$options": "i"}}))
+    events_by_time = list(events_collection.find(
+        {"event_time": {"$regex": query, "$options": "i"}}))
+    events_by_name = list(events_collection.find(
+        {"description": {"$regex": query, "$options": "i"}}))
 
     results = events_by_time + events_by_name
 
     if not results:
         return "No events found matching that query."
-    
+
     return "\n".join([f"{event['event_type'].capitalize()}: {event['description']} at {event['event_time']}" for event in results])
 
 
@@ -106,7 +111,6 @@ def get_event(time=None, event=None):
     return best_match
 
 
-
 # Function to remove events by ID, time, or description
 def remove_event(query=None, event_id=None):
     if event_id:
@@ -133,21 +137,23 @@ def remove_event(query=None, event_id=None):
             return f"Deleted {result.deleted_count} event(s) matching '{query}'."
         else:
             return "No events found to delete."
-    
+
     return "Please provide either an event ID or a query to delete."
 
 # Function to set recurring reminders, alarms, and calendar events
+
+
 def set_recurring_event(event_time, event_name, recurrence_type, duration, is_homework):
     # Insert recurring event into the MongoDB collection
     event = {
         "description": event_name,
         "event_time": event_time,
         "recurrence_type": recurrence_type,  # e.g., 'daily', 'weekly', 'monthly'
-        "duration":duration,
-        "is_homework":is_homework
+        "duration": duration,
+        "is_homework": is_homework
     }
     recurring_events_collection.insert_one(event)
-    
+
     return f"{event_name.capitalize()} set for {event_time} with recurrence '{recurrence_type}'."
 
 
@@ -160,7 +166,7 @@ def get_recurring_events(query):
             {"recurrence_type": {"$exists": True}}
         ]
     }))
-    
+
     events_by_name = list(recurring_events_collection.find({
         "$and": [
             {"description": {"$regex": query, "$options": "i"}},
@@ -172,10 +178,12 @@ def get_recurring_events(query):
 
     if not results:
         return "No recurring events found matching that query."
-    
+
     return "\n".join([f"Recurring {event['recurrence_type'].capitalize()}: {event['description']} at {event['event_time']}" for event in results])
 
 # Function to query recurring events by a single word in the event description
+
+
 def query_recurring_event(word):
     return list(recurring_events_collection.find({
         "$and": [
@@ -183,6 +191,7 @@ def query_recurring_event(word):
             {"recurrence_type": {"$exists": True}}
         ]
     }))
+
 
 def get_recurring_event(time=None, event=None):
     if not event:
@@ -237,11 +246,14 @@ def get_recurring_event(time=None, event=None):
     return best_match
 
 # Function to remove recurring events by ID, time, or description
+
+
 def remove_recurring_event(query=None, event_id=None):
     if event_id:
         # Try removing by event ID
         try:
-            result = recurring_events_collection.delete_one({"_id": ObjectId(event_id), "recurrence_type": {"$exists": True}})
+            result = recurring_events_collection.delete_one(
+                {"_id": ObjectId(event_id), "recurrence_type": {"$exists": True}})
             if result.deleted_count > 0:
                 return f"Deleted recurring event with ID '{event_id}'."
             else:
@@ -267,7 +279,7 @@ def remove_recurring_event(query=None, event_id=None):
             return f"Deleted {result.deleted_count} recurring event(s) matching '{query}'."
         else:
             return "No recurring events found to delete."
-    
+
     return "Please provide either an event ID or a query to delete."
 
 
@@ -278,8 +290,10 @@ def event_to_string(event):
 
     return f"{description} at {event_time}"
 
-def get_event_and_time(user_input, take_command=None, speak=None, recurrence = False):
-    event_name, event_time, recurrence, duration, is_homework  = extract_event_and_time(user_input, recurrence = recurrence)
+
+def get_event_and_time(user_input, take_command=None, speak=None, recurrence=False):
+    event_name, event_time, recurrence, duration, is_homework = extract_event_and_time(
+        user_input, recurrence=recurrence)
 
     # Prompt for missing details if necessary
     if not event_name:
@@ -298,20 +312,24 @@ def get_event_and_time(user_input, take_command=None, speak=None, recurrence = F
 
     return event_name, event_time, recurrence, duration, is_homework
 
+
 def handle_add_to_schedule(user_input, take_command=None, speak=None):
-    event_name, event_time, recurrence,duration,is_homework  = get_event_and_time(user_input, take_command, speak)
+    event_name, event_time, recurrence, duration, is_homework = get_event_and_time(
+        user_input, take_command, speak)
     if not event_time:
         return "Sorry, I couldn’t determine the time for that event."
     if not event_name:
         return "Sorry, I couldn’t determine the event."
-    
-    set_event(event_time, event_name,duration,is_homework)
+
+    set_event(event_time, event_name, duration, is_homework)
     response = f"'{event_name}' scheduled for {event_time}."
     return response
 
+
 def handle_remove_from_schedule(user_input, take_command=None, speak=None):
     # Extract event details from user input
-    event_name, event_time = schedule_retriever_interpreter(user_input, take_command, speak)
+    event_name, event_time = schedule_retriever_interpreter(
+        user_input, take_command, speak)
 
     # Initialize lists for the response
     removed_events_str_list = []
@@ -324,19 +342,23 @@ def handle_remove_from_schedule(user_input, take_command=None, speak=None):
     # If a specific event name is provided, but not a specific time
     if event_name and not event_time:
         # Search by event name in both collections with substring matching
-        events = list(events_collection.find({"description": {"$regex": f".*{event_name}.*", "$options": "i"}}))
-        recurring_events = list(recurring_events_collection.find({"description": {"$regex": f".*{event_name}.*", "$options": "i"}}))
+        events = list(events_collection.find(
+            {"description": {"$regex": f".*{event_name}.*", "$options": "i"}}))
+        recurring_events = list(recurring_events_collection.find(
+            {"description": {"$regex": f".*{event_name}.*", "$options": "i"}}))
 
         # Remove matching events carefully by checking the exact description
         for event in events:
             if event_name.lower() in event.get('description', '').lower():
                 events_collection.delete_one({"_id": event["_id"]})
-                removed_events_str_list.append(f"Removed: {event.get('description', 'Unnamed Event')} on {event.get('event_time', 'Unknown Time')}")
+                removed_events_str_list.append(
+                    f"Removed: {event.get('description', 'Unnamed Event')} on {event.get('event_time', 'Unknown Time')}")
 
         # Remove matching recurring events carefully by checking the exact description
         for recurring_event in recurring_events:
             if event_name.lower() in recurring_event.get('description', '').lower():
-                recurring_events_collection.delete_one({"_id": recurring_event["_id"]})
+                recurring_events_collection.delete_one(
+                    {"_id": recurring_event["_id"]})
                 removed_recurring_events_str_list.append(
                     f"Removed: {recurring_event.get('description', 'Unnamed Event')} every {recurring_event.get('recurrence_type', 'Unknown Recurrence')} at {recurring_event.get('event_time', 'Unknown Time')}"
                 )
@@ -350,7 +372,8 @@ def handle_remove_from_schedule(user_input, take_command=None, speak=None):
         for event in events:
             if event_time.lower() in event.get('event_time', '').lower():
                 events_collection.delete_one({"_id": event["_id"]})
-                removed_events_str_list.append(f"Removed: {event.get('description', 'Unnamed Event')} on {event.get('event_time', 'Unknown Time')}")
+                removed_events_str_list.append(
+                    f"Removed: {event.get('description', 'Unnamed Event')} on {event.get('event_time', 'Unknown Time')}")
 
     # If both event name and time are provided
     elif event_name and event_time:
@@ -361,7 +384,8 @@ def handle_remove_from_schedule(user_input, take_command=None, speak=None):
         for event in events:
             if event_name.lower() in event.get('description', '').lower() and event_time.lower() in event.get('event_time', '').lower():
                 events_collection.delete_one({"_id": event["_id"]})
-                removed_events_str_list.append(f"Removed: {event.get('description', 'Unnamed Event')} on {event.get('event_time', 'Unknown Time')}")
+                removed_events_str_list.append(
+                    f"Removed: {event.get('description', 'Unnamed Event')} on {event.get('event_time', 'Unknown Time')}")
 
     # Convert removed regular events to string format
     for event in events:
@@ -374,7 +398,8 @@ def handle_remove_from_schedule(user_input, take_command=None, speak=None):
         removed_recurring_events_str_list.append(recurring_event_str)
 
     # Combine both lists into one response string
-    combined_removed_events_str = "\n".join(removed_events_str_list + removed_recurring_events_str_list)
+    combined_removed_events_str = "\n".join(
+        removed_events_str_list + removed_recurring_events_str_list)
 
     # Return the combined response
     if combined_removed_events_str:
@@ -382,15 +407,13 @@ def handle_remove_from_schedule(user_input, take_command=None, speak=None):
     else:
         return "No matching events found to remove."
 
-
-
-    
-  
     return response
 
-def handle_retrieve_information(user_input, take_command=None, speak=None):
+
+def handle_retrieve_events(user_input, take_command=None, speak=None):
     # Use the new interpreter to extract event details from user input
-    event_name, event_time = schedule_retriever_interpreter(user_input, take_command, speak)
+    event_name, event_time = schedule_retriever_interpreter(
+        user_input, take_command, speak)
 
     # Initialize lists for the response
     regular_events_str_list = []
@@ -403,23 +426,27 @@ def handle_retrieve_information(user_input, take_command=None, speak=None):
     # If no specific time is given, look up by event name in both collections
     if event_name and not event_time:
         # Search by event name in both collections
-        events = events_collection.find({"description": {"$regex": event_name, "$options": "i"}})
-        recurring_events = recurring_events_collection.find({"description": {"$regex": event_name, "$options": "i"}})
+        events = events_collection.find(
+            {"description": {"$regex": event_name, "$options": "i"}})
+        recurring_events = recurring_events_collection.find(
+            {"description": {"$regex": event_name, "$options": "i"}})
 
     # If no specific name is given, look up by event time in both collections
     elif event_time and not event_name:
         # Search by event time in both collections
         # Handle both exact and relative times; use regex to match times
-        events = events_collection.find({"event_time": {"$regex": event_time, "$options": "i"}})
+        events = events_collection.find(
+            {"event_time": {"$regex": event_time, "$options": "i"}})
 
         # For recurring events, check for day matches or similar patterns
         day_of_week = None
         # Convert the date string to a datetime object
         date_object = datetime.strptime(event_time, '%Y-%m-%d')
-    
+
         # Get the day of the week
         day_of_week = date_object.strftime('%A')
-        recurring_events = recurring_events_collection.find({"recurrence_type": {"$regex": day_of_week, "$options": "i"}})
+        recurring_events = recurring_events_collection.find(
+            {"recurrence_type": {"$regex": day_of_week, "$options": "i"}})
 
     # Convert regular events to string format
     for event in events:
@@ -432,7 +459,8 @@ def handle_retrieve_information(user_input, take_command=None, speak=None):
         recurring_events_str_list.append(recurring_event_str)
 
     # Combine both lists into one response string
-    combined_events_str = "\n".join(regular_events_str_list + recurring_events_str_list)
+    combined_events_str = "\n".join(
+        regular_events_str_list + recurring_events_str_list)
 
     # Return the combined response
     if combined_events_str:
@@ -441,9 +469,9 @@ def handle_retrieve_information(user_input, take_command=None, speak=None):
         return "No matching events found."
 
 
-
 def handle_add_to_recurring_schedule(user_input, take_command=None, speak=None):
-    event_name, event_time, recurrence, duration, is_homework = get_event_and_time(user_input, take_command, speak, recurrence=True)
+    event_name, event_time, recurrence, duration, is_homework = get_event_and_time(
+        user_input, take_command, speak, recurrence=True)
     if not event_time:
         return "Sorry, I couldn’t determine the time for that event."
     if not event_name:
@@ -451,26 +479,59 @@ def handle_add_to_recurring_schedule(user_input, take_command=None, speak=None):
     if not recurrence:
         return "Sorry, I couldn’t determine the recurrence pattern."
 
-    set_recurring_event(event_time, event_name, recurrence,duration,is_homework)
+    set_recurring_event(event_time, event_name,
+                        recurrence, duration, is_homework)
     response = f"'{event_name}' scheduled for {event_time} with recurrence '{recurrence}'."
-    
+
     return response
+
+
 def handle_remove_from_recurring_schedule(user_input, take_command=None, speak=None):
-    event_name, event_time, recurrence, duration, is_homework = get_event_and_time(user_input, take_command, speak, recurrence=True)
+    event_name, event_time, recurrence, duration, is_homework = get_event_and_time(
+        user_input, take_command, speak, recurrence=True)
     event = get_recurring_event(event=event_name, time=event_time)
     if event:
         event_id = str(event["_id"])  # Extract the event ID
-        remove_recurring_event(event_id=event_id)  # Remove the event using the ID
+        # Remove the event using the ID
+        remove_recurring_event(event_id=event_id)
         response = f"Removed recurring event: {event_to_string(event)}"
     else:
         response = "I couldn't find a recurring event matching that description."
 
     return response
+
+
 def handle_retrieve_recurring_information(user_input, take_command=None, speak=None):
-    event_name, event_time, recurrence, duration, is_homework = get_event_and_time(user_input, take_command, speak, recurrence=True)
+    event_name, event_time, recurrence, duration, is_homework = get_event_and_time(
+        user_input, take_command, speak, recurrence=True)
     event = get_recurring_event(event=event_name, time=event_time)
     response = event_to_string(event)
     return response
 
 
+def summarize_events(userSaid: str, jarvis_input, jarvis_output):
+    from ask_gpt import ask_gpt
+    events_summary = handle_retrieve_events(
+        userSaid, take_command=jarvis_input, speak=jarvis_output)
 
+    # Get the timezone string from the function
+    timezone_str = get_location_timezone()
+
+    # Convert the timezone string to a timezone-aware datetime object
+    timezone = pytz.timezone(timezone_str)
+    current_time = datetime.now(timezone)
+
+    # Construct the prompt with the correct weekday and time
+    question = (
+        f"J.A.R.V.I.S., provide a response to Tony Stark's request in a concise, natural, and conversational tone. "
+        f"Today is {current_time.strftime('%A')}, and the current time is {current_time.strftime('%I:%M %p')}. "
+        f"Ensure that events are sorted by their start time, mentioning only those that are relevant to today and have not yet occurred. "
+        f"Be cautious about mentioning any events that are currently happening at the time of input. "
+        f"Use the event summary as a guide, but exclude any recurring events or dates that are not explicitly requested. "
+        f"Avoid using any lists, bullet points, or unnecessary formatting. Keep your response focused and succinct. "
+        f"The original request was: '{userSaid}'. The event summary is: '{events_summary}'."
+    )
+
+    # Call ask_gpt to generate a JARVIS-like response
+    response = ask_gpt(question, user_personalized=True)
+    return response

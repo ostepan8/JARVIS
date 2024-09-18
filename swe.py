@@ -34,6 +34,73 @@ class SoftwareEngineer:
         else:
             print("nothing")
 
+    def generate_command_with_gpt(self, project_name, description, project_type, frameworks, directory):
+        from ask_gpt import simple_ask_gpt
+
+        # Construct a more generic prompt to handle various types of project creation commands
+        prompt = (
+            f"Generate a terminal command to create a new project with the following details:\n"
+            f"Project Name: {project_name}\n"
+            f"Description: {description}\n"
+            f"Project Type: {project_type}\n"
+            f"Frameworks: {frameworks}\n"
+            f"Directory: {directory}\n"
+            "Ensure the command uses the latest and correct tools, syntax, and conventions for creating such a project. "
+            "The command should be executable in a terminal and avoid deprecated commands or unsupported options.\n"
+            "If a tool is deprecated or not suited for the context, suggest an alternative or updated tool. "
+            "Only include options that are valid for the command or tool being used, and omit any options that are not supported, such as --description if it is not allowed. "
+            "Do not include any backticks, the word 'bash,' or any additional explanation. "
+            "Only provide the terminal command as plain text."
+        )
+
+        # Call the GPT function to get the command
+        command = simple_ask_gpt(prompt).strip()
+
+        # Check if the generated command is 'None' and handle the error
+        if command == "None":
+            raise ValueError(
+                "Unable to generate a valid terminal command based on the provided details.")
+
+        print(f"Generated Command: {command}")
+        return command
+
+    def validate_command_with_gpt(self, command):
+        """
+        Validates the generated terminal command using GPT to ensure it is formatted correctly.
+        If incorrect, requests GPT to provide a corrected version of the command.
+        """
+        from ask_gpt import simple_ask_gpt
+
+        # Prompt GPT to validate and, if necessary, correct the command
+        validation_prompt = (
+            f"Check if the following terminal command is correctly formatted and valid:\n"
+            f"{command}\n"
+            "If the command is valid and executable, return it exactly as it is. "
+            "If there are any errors or formatting issues, return the corrected command without any explanation. "
+            "Be very strict and only return the terminal command that should be used."
+        )
+
+        # Call the GPT function to validate and potentially correct the command
+        corrected_command = simple_ask_gpt(validation_prompt).strip()
+
+        # If the corrected command is different from the original, print the correction
+        if corrected_command != command:
+            print(f"Command corrected by GPT: {corrected_command}")
+
+        return corrected_command
+
+    def execute_command(self, command):
+        """
+        Executes the generated command in the terminal.
+        """
+        try:
+            # Run the command in the terminal
+            result = subprocess.run(
+                command, shell=True, check=True, text=True, capture_output=True)
+            print(f"Command executed successfully: {result.stdout}")
+        except subprocess.CalledProcessError as e:
+            print(f"An error occurred: {e.stderr}")
+
     def create_project_protocol(self, userSaid, jarvis_input, jarvis_output):
         from file_system import handle_file_system
         from ask_gpt import simple_ask_gpt
@@ -91,8 +158,11 @@ class SoftwareEngineer:
         #     )
         #     project_details['github_repo'] = github_repo_response.strip().lower() in [
         #         'yes', 'y']
-        print(project_details)
-        return "found"
+        terminal_command = self.generate_command_with_gpt(project_details["project_name"], project_details["project_description"],
+                                                          project_details["project_type"], project_details["framework"], project_details["directory"])
+        corrected_command = self.validate_command_with_gpt(terminal_command)
+        self.execute_command(corrected_command)
+        return "Created, sir"
 
     def create_file(self, description: str, file_name: str = "test.py"):
         """
@@ -226,10 +296,3 @@ class SoftwareEngineer:
         if match:
             return match.group(1)
         return None  # Return None if no function name is found
-
-
-# Example usage
-if __name__ == "__main__":
-    engineer = SoftwareEngineer()
-    task_description = "Write a Python function to calculate the factorial of a given non-negative integer."
-    engineer.create_file(task_description, "test.py")

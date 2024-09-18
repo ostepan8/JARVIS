@@ -21,7 +21,11 @@ TMDB_PROVIDER_MAPPING = {
     'Amazon Prime Video': {'provider_id': 9, 'roku_app_name': 'Prime Video'},
     'Disney Plus': {'provider_id': 337, 'roku_app_name': 'Disney Plus'},
     'HBO Max': {'provider_id': 384, 'roku_app_name': 'HBO Max'},
-    # Add more providers as needed
+    'Apple TV Plus': {'provider_id': 350, 'roku_app_name': 'Apple TV'},
+    'Peacock': {'provider_id': 386, 'roku_app_name': 'Peacock TV'},
+    'Paramount Plus': {'provider_id': 531, 'roku_app_name': 'Paramount Plus'},
+    'YouTube': {'provider_id': 192, 'roku_app_name': 'YouTube'},
+    'YouTube TV': {'provider_id': 363, 'roku_app_name': 'YouTube TV'},
 }
 
 
@@ -58,7 +62,7 @@ def get_tv_command_intent(text):
         'Volume down',
         'Open app',
         'Play TV Show',
-        'Play Movie',  
+        'Play Movie',
         'Other'
     ]
 
@@ -87,6 +91,7 @@ def get_tv_command_intent(text):
     print(command_intent, "TV_INTENT")
     return command_intent
 
+
 def play_tv_show(tv_show_name):
     """
     Attempts to play a TV show by determining the streaming service and launching the app.
@@ -97,7 +102,8 @@ def play_tv_show(tv_show_name):
     # Step 1: Find out which streaming service has the TV show
     providers = search_tv_show_on_providers(tv_show_name)
     if not providers:
-        print(f"Could not find '{tv_show_name}' on available streaming services.")
+        print(
+            f"Could not find '{tv_show_name}' on available streaming services.")
         return
 
     # Step 2: Map provider to Roku app
@@ -108,12 +114,12 @@ def play_tv_show(tv_show_name):
             # Launch the app and inform the user
             home()
             launch_app_by_name(app_name)
-            print(f"Opened {app_name} for '{tv_show_name}'. Please search for the show in the app.")
+            print(
+                f"Opened {app_name} for '{tv_show_name}'. Please search for the show in the app.")
             if app_name.lower() == 'hulu':
                 # Call the Hulu-specific search and select function
                 search_and_select_hulu(tv_show_name)
                 return
-            
 
     print(f"Streaming service for '{tv_show_name}' is not supported.")
 
@@ -128,7 +134,8 @@ def play_movie(movie_name):
     # Step 1: Find out which streaming service has the movie
     providers = search_movie_on_providers(movie_name)
     if not providers:
-        print(f"Could not find '{movie_name}' on available streaming services.")
+        print(
+            f"Could not find '{movie_name}' on available streaming services.")
         return
 
     # Step 2: Map provider to Roku app
@@ -138,13 +145,16 @@ def play_movie(movie_name):
             app_name = provider_info['roku_app_name']
             home()
             launch_app_by_name(app_name)
-            print(f"Opened {app_name} for '{movie_name}'. Please search for the show in the app.")
+            print(
+                f"Opened {app_name} for '{movie_name}'. Please search for the show in the app.")
             if app_name.lower() == 'hulu':
                 # Call the Hulu-specific search and select function
                 search_and_select_hulu(movie_name)
                 return
 
     print(f"Streaming service for '{movie_name}' is not supported.")
+
+
 def search_movie_on_providers(movie_name):
     """
     Searches for the movie on various streaming providers using TMDb API.
@@ -168,7 +178,8 @@ def search_movie_on_providers(movie_name):
             'language': 'en-US',
             'page': 1,
         }
-        search_response = requests.get(search_url, params=search_params, headers=headers)
+        search_response = requests.get(
+            search_url, params=search_params, headers=headers)
         print(search_response)
         if search_response.status_code == 200:
             search_data = search_response.json()
@@ -187,7 +198,8 @@ def search_movie_on_providers(movie_name):
         provider_params = {
             'api_key': TMDB_API_KEY,
         }
-        provider_response = requests.get(provider_url, params=provider_params, headers=headers)
+        provider_response = requests.get(
+            provider_url, params=provider_params, headers=headers)
 
         if provider_response.status_code == 200:
             provider_data = provider_response.json()
@@ -203,7 +215,8 @@ def search_movie_on_providers(movie_name):
                                 providers.add(provider_name)
                 return list(providers)
             else:
-                print(f"No providers found in region '{TMDB_PROVIDER_REGION}'.")
+                print(
+                    f"No providers found in region '{TMDB_PROVIDER_REGION}'.")
                 return []
         else:
             print(f"TMDb provider API error: {provider_response.status_code}")
@@ -211,8 +224,6 @@ def search_movie_on_providers(movie_name):
     except requests.RequestException as e:
         print(f"Error querying TMDb API: {e}")
     return []
-
-
 
 
 def search_tv_show_on_providers(tv_show_name):
@@ -237,7 +248,8 @@ def search_tv_show_on_providers(tv_show_name):
             'language': 'en-US',
             'page': 1,
         }
-        search_response = requests.get(search_url, params=search_params, headers=headers)
+        search_response = requests.get(
+            search_url, params=search_params, headers=headers)
         print(search_response)
         if search_response.status_code == 200:
             search_data = search_response.json()
@@ -256,7 +268,8 @@ def search_tv_show_on_providers(tv_show_name):
         provider_params = {
             'api_key': TMDB_API_KEY,
         }
-        provider_response = requests.get(provider_url, params=provider_params, headers=headers)
+        provider_response = requests.get(
+            provider_url, params=provider_params, headers=headers)
 
         if provider_response.status_code == 200:
             provider_data = provider_response.json()
@@ -271,7 +284,8 @@ def search_tv_show_on_providers(tv_show_name):
                                 providers.add(provider_name)
                 return list(providers)
             else:
-                print(f"No providers found in region '{TMDB_PROVIDER_REGION}'.")
+                print(
+                    f"No providers found in region '{TMDB_PROVIDER_REGION}'.")
                 return []
         else:
             print(f"TMDb provider API error: {provider_response.status_code}")
@@ -279,6 +293,7 @@ def search_tv_show_on_providers(tv_show_name):
     except requests.RequestException as e:
         print(f"Error querying TMDb API: {e}")
     return []
+
 
 def search_and_select_hulu(tv_show_name):
     """
@@ -301,7 +316,7 @@ def search_and_select_hulu(tv_show_name):
     # Convert the input to lowercase to match the position matrix
     tv_show_name = tv_show_name.lower()
     # Calculate the optimal path for typing the TV show name
-    path,current_position = calculate_optimal_path(tv_show_name)
+    path, current_position = calculate_optimal_path(tv_show_name)
     print("Order:", path)
 
     # Send the Roku commands based on the calculated path
@@ -332,7 +347,7 @@ def get_position_matrix():
         ['5', '6', '7', '8', '9', '0'],
 
     ]
-    
+
     position_matrix = {}
     for i in range(len(layout)):
         for j in range(len(layout[i])):
@@ -355,11 +370,13 @@ def calculate_optimal_path(word):
             # Move vertically to the bottom row
             while current_position[0] < 6:
                 path.append('keypress/Down')
-                current_position = (current_position[0] + 1, current_position[1])
+                current_position = (
+                    current_position[0] + 1, current_position[1])
             # Move horizontally to the first column
             while current_position[1] > 1:
                 path.append('keypress/Left')
-                current_position = (current_position[0], current_position[1] - 1)
+                current_position = (
+                    current_position[0], current_position[1] - 1)
             path.append('keypress/Right')
             current_position = (current_position[0], current_position[1] + 1)
             # Select the "space" key
@@ -394,8 +411,6 @@ def calculate_optimal_path(word):
     return path, current_position
 
 
-
-
 def send_roku_command_with_retry(command, retries=10, delay=2.5):
     """
     Sends a command to the Roku device and retries if it fails.
@@ -412,7 +427,8 @@ def send_roku_command_with_retry(command, retries=10, delay=2.5):
             print(f"Successfully sent command: {command}")
             return True
         else:
-            print(f"Attempt {attempt + 1} failed, retrying in {delay} seconds...")
+            print(
+                f"Attempt {attempt + 1} failed, retrying in {delay} seconds...")
             time.sleep(delay)
     print(f"Failed to send command: {command} after {retries} attempts.")
     return False
@@ -491,8 +507,6 @@ def extract_tv_show_name(user_input):
         return extracted_name  # Return the extracted name if an exception occurs
 
 
-
-
 def handle_tv_command(user_input):
     """
     Executes the appropriate function based on the given TV command intent.
@@ -507,7 +521,7 @@ def handle_tv_command(user_input):
     # Normalize the command intent to lowercase to avoid case inconsistencies
     command_intent_lower = command_intent.lower()
     if command_intent_lower == 'play tv show':
-    
+
         # Use ChatGPT to extract the TV show name
         tv_show_name = extract_tv_show_name(user_input)
         if tv_show_name:
@@ -515,7 +529,7 @@ def handle_tv_command(user_input):
         else:
             print("Could not determine the TV show to play.")
     elif command_intent_lower == 'play movie':
-        
+
         # Use ChatGPT to extract the TV show name
         movie_name = extract_tv_show_name(user_input)
         if movie_name:
@@ -629,10 +643,10 @@ def send_roku_command(endpoint):
         if response.status_code == 200:
             print(f'Successfully sent command to {endpoint}')
         else:
-            print(f'Failed to send command. Status code: {response.status_code}')
+            print(
+                f'Failed to send command. Status code: {response.status_code}')
     except requests.RequestException as e:
         print(f'Error sending command to Roku: {e}')
-
 
 
 # Functions for controlling the TV
@@ -687,7 +701,8 @@ def get_app_id_by_name(app_name):
                 if app.text.lower() == app_name.lower():
                     return app.attrib['id']
         else:
-            print(f"Failed to retrieve app list. Status code: {response.status_code}")
+            print(
+                f"Failed to retrieve app list. Status code: {response.status_code}")
     except requests.RequestException as e:
         print(f"Error retrieving app list from Roku: {e}")
     return None
@@ -900,6 +915,7 @@ def find_amount(user_input: str) -> int:
         # Default to 1 if unable to parse the amount
         return 1
 
+
 def volume_up(input: str):
     """
     Increases the volume on the Roku TV based on user input.
@@ -917,13 +933,12 @@ def volume_down(input: str):
     Decreases the volume on the Roku TV based on user input.
     """
     # Determine the amount to decrease the volume
-    amount = abs(find_amount(input))  
+    amount = abs(find_amount(input))
     print(amount)
 
     # Loop to send the 'VolumeDown' command the specified number of times
     for _ in range(amount):
         send_roku_command('keypress/VolumeDown')
-
 
 
 # Functions to extract details from user input using ChatGPT
@@ -973,14 +988,16 @@ def extract_playback_action(user_input):
     Returns:
         str: The playback action, or None if not found.
     """
-    possible_actions = ['play', 'pause', 'fast forward', 'rewind', 'stop', 'forward', 'reverse']
+    possible_actions = ['play', 'pause', 'fast forward',
+                        'rewind', 'stop', 'forward', 'reverse']
     messages = [
         {
             "role": "system",
             "content": (
                 "You are an assistant that extracts playback actions from user requests for a Roku TV. "
                 "Extract the playback action (e.g., play, pause, fast forward, rewind) from the following input. "
-                "Your response should be one of these actions: " + ", ".join(possible_actions) + ". "
+                "Your response should be one of these actions: " +
+                    ", ".join(possible_actions) + ". "
                 "If you cannot find an action, respond with 'None'."
             )
         },
@@ -1127,7 +1144,8 @@ def extract_navigation_direction(user_input):
             "content": (
                 "You are an assistant that extracts navigation directions from user requests for a Roku TV. "
                 "Extract the navigation direction from the following input. "
-                "Your response should be one of these directions: " + ", ".join(valid_directions) + ". "
+                "Your response should be one of these directions: " +
+                    ", ".join(valid_directions) + ". "
                 "If you cannot find a direction, respond with 'None'."
             )
         },
@@ -1204,7 +1222,8 @@ def extract_captioning_state(user_input):
             "content": (
                 "You are an assistant that extracts closed captioning states from user requests for a Roku TV. "
                 "Extract the captioning state from the following input. "
-                "Your response should be one of these states: " + ", ".join(valid_states) + ". "
+                "Your response should be one of these states: " +
+                    ", ".join(valid_states) + ". "
                 "If you cannot find a state, respond with 'None'."
             )
         },
@@ -1262,4 +1281,3 @@ def extract_volume_level(user_input):
         return volume_level
     except ValueError:
         return None
-

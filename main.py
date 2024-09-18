@@ -48,8 +48,9 @@ def play_beep():
 
 def takeCommand():
     print("take command")
+
     r = sr.Recognizer()
-    play_beep()
+    # play_beep()
     with sr.Microphone() as source:
         print("Listening... ", end="")
         r.adjust_for_ambient_noise(source)
@@ -71,7 +72,7 @@ def ConversationFlow(test_mode=False, user_id="ostepan8"):
         return input(prompt_message+"\n") if test_mode else takeCommand()
 
     def jarvis_output(prompt_message: str):
-        return print(prompt_message) if test_mode else takeCommand(prompt_message)
+        return print(prompt_message) if test_mode else speak(prompt_message)
 
     userSaid = jarvis_input("Enter your command: ")
 
@@ -190,4 +191,4 @@ def main(test=False):
 
 if __name__ == "__main__":
     # Now run the main function after initialize completes
-    main(True)
+    main()

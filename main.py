@@ -6,6 +6,7 @@ from system import initialize, elevenlabs_client, get_scheduler, swe
 import re
 from tv_controller import handle_tv_command
 from ask_gpt import get_main_intent, ask_gpt
+from system import light_controller
 from scheduling import handle_add_to_schedule, handle_remove_from_schedule, summarize_events, handle_add_to_recurring_schedule
 from elevenlabs import play
 import simpleaudio as sa
@@ -30,8 +31,12 @@ scheduler = get_scheduler()
 
 
 def speak(text):
-    audio = elevenlabs_client.generate(text=text, voice="George")
-    play(audio)
+    try:
+        audio = elevenlabs_client.generate(text=text, voice="George")
+        play(audio)
+    except Exception as e:
+        print(f"Error in speak function: {e}")
+
 
 
 def play_beep():
@@ -88,6 +93,7 @@ def ConversationFlow(test_mode=False, user_id="ostepan8"):
             'System Diagnostics and Reports',
             'User Information Retrieval',
             'Control Home TV',
+            'Control Home Lights',
             'Software Project Management and Help',
             'File System',
             'Other',
@@ -119,6 +125,10 @@ def ConversationFlow(test_mode=False, user_id="ostepan8"):
             swe.handle_swe_input(userSaid, jarvis_input, jarvis_output)
         elif intent == "File System":
             handle_file_system(userSaid)
+        elif intent == 'Control Home Lights':
+            light_controller.handle_input(userSaid)
+
+            
 
             # response = handle_home_automation(userSaid)
             # if test_mode:
@@ -144,6 +154,7 @@ def ConversationFlow(test_mode=False, user_id="ostepan8"):
             response = ask_gpt(userSaid, user_personalized=True,
                                previous_interactions=True, interaction_limit=10)
         jarvis_output(response)
+        return
         store_interaction(user_id, userSaid, response, intent)
         thread = threading.Thread(
             target=analyze_and_update_profile, args=(user_id, userSaid, response))
@@ -191,4 +202,4 @@ def main(test=False):
 
 if __name__ == "__main__":
     # Now run the main function after initialize completes
-    main()
+    main(True)

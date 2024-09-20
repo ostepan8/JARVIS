@@ -1,69 +1,162 @@
 from yeelight import Bulb, RGBTransition, Flow
 from datetime import datetime
 import time
-
+import random
+from concurrent.futures import ThreadPoolExecutor
 
 class YeelightController:
-    def __init__(self, ip_address):
-        self.bulb = Bulb(ip_address)
+    def __init__(self, ip_addresses):
+        self.bulbs = [Bulb(ip) for ip in ip_addresses]
+
+    def handle_input(self, userSaid):
+        from ask_gpt import classify_intent
+        light_intent = classify_intent(
+            userSaid, ["Turn on lights", "Turn off lights", "Change color", "Good morning", "Good night", "Party mode", "Relax mode", "Focus mode", "Movie mode", "Disco mode", "Reading mode", "Romantic mode", "Normal mode"]
+        )
+
+        # Dictionary to map intents to their respective functions
+        intent_map = {
+            "Turn on lights": self.turn_on,
+            "Turn off lights": self.turn_off,
+            "Good morning": self.mood_good_morning,
+            "Good night": self.mood_good_night,
+            "Party mode": self.mood_party,
+            "Relax mode": self.mood_relax,
+            "Focus mode": self.mood_focus,
+            "Movie mode": self.mood_movie,
+            "Disco mode": self.mood_disco,
+            "Reading mode": self.mood_reading,
+            "Romantic mode": self.mood_romantic,
+            "Normal mode": self.mood_normal
+        }
+
+        # Handle the intent
+        if light_intent in intent_map:
+            # Run the function asynchronously to avoid blocking
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor() as executor:
+                executor.submit(intent_map[light_intent])
+            return "On it, sir"
+
+        elif light_intent == "Change color":
+            # Handle color change in parallel
+            self.change_color(userSaid)
+            return "Changing the color, sir"
+
+        else:
+            print("No matching intent")
+            return "Command not recognized, sir"
+
+    def change_color(self, userSaid):
+    # Define a dictionary of basic colors with their RGB values
+        color_map = {
+            "red": (255, 0, 0),
+            "green": (0, 255, 0),
+            "blue": (0, 0, 255),
+            "yellow": (255, 255, 0),
+            "purple": (128, 0, 128),
+            "orange": (255, 165, 0),
+            "pink": (255, 192, 203),
+            "white": (255, 255, 255),
+            "warm white": (255, 244, 229),
+            "cyan": (0, 255, 255),
+        }
+
+        # Extract color from user input
+        words = userSaid.split()
+        for word in words:
+            if word.lower() in color_map:
+                rgb_value = color_map[word.lower()]
+                # Apply the color to all bulbs
+                self._run_in_parallel(lambda bulb: bulb.set_rgb(*rgb_value))
+                return
+        print(f"Color in input '{userSaid}' not recognized.")
+
+
+
+
+    def _run_in_parallel(self, func, *args, **kwargs):
+        with ThreadPoolExecutor() as executor:
+            executor.map(lambda bulb: func(bulb, *args, **kwargs), self.bulbs)
+
+    def is_bulb_on(self):
+        for bulb in self.bulbs:
+            properties = bulb.get_properties()
+            if(properties.get('power') != 'on'):
+                return False
+        return True
+      
 
     # Basic Actions
     def turn_on(self):
-        self.bulb.turn_on()
+        self._run_in_parallel(lambda bulb: bulb.turn_on())
 
     def turn_off(self):
-        self.bulb.turn_off()
+        self._run_in_parallel(lambda bulb: bulb.turn_off())
 
     def set_brightness(self, level):
-        self.bulb.set_brightness(level)
+        self._run_in_parallel(lambda bulb: bulb.set_brightness(level))
 
     # Custom Moods
     def mood_good_morning(self):
-        self.bulb.set_rgb(255, 223, 186)  # Light orange-white
-        self.bulb.set_brightness(70)
+        def gradual_brightness_increase(bulb):
+            # Start with a soft warm light
+            bulb.set_rgb(255, 223, 186)  # Light orange-white
+            bulb.set_brightness(10)  # Start with low brightness
+            
+            # Gradually increase brightness and change to white light
+            for brightness in range(10, 101, 10):  # Increase brightness from 10 to 100 in steps of 10
+                time.sleep(0.5)  # Adjust the time delay to control the speed of transition
+                bulb.set_brightness(brightness)
+            
+            # Once brightness is full, transition to a super bright white light
+            bulb.set_rgb(255, 255, 255)  # Bright white
+
+        self._run_in_parallel(gradual_brightness_increase)
+
 
     def mood_good_night(self):
-        self.bulb.set_rgb(255, 180, 107)  # Dim warm color
-        self.bulb.set_brightness(30)
+        self._run_in_parallel(lambda bulb: bulb.set_rgb(255, 180, 107))  # Dim warm color
+        self.set_brightness(30)
 
     def mood_goodbye(self):
-        self.bulb.set_rgb(255, 255, 255)  # White
-        self.bulb.set_brightness(50)
+        self._run_in_parallel(lambda bulb: bulb.set_rgb(255, 255, 255))  # White
+        self.set_brightness(50)
         self.turn_off()
 
     def mood_party(self):
         transitions = [RGBTransition(255, 0, 0, duration=500),
-                       RGBTransition(0, 255, 0, duration=500),
-                       RGBTransition(0, 0, 255, duration=500)]
+                    RGBTransition(0, 255, 0, duration=500),
+                    RGBTransition(0, 0, 255, duration=500)]
         flow = Flow(count=0, transitions=transitions)
-        self.bulb.start_flow(flow)
+        self._run_in_parallel(lambda bulb: bulb.start_flow(flow))
 
     def mood_romantic(self):
-        self.bulb.set_rgb(255, 0, 102)  # Pinkish-red color
-        self.bulb.set_brightness(40)
+        self._run_in_parallel(lambda bulb: bulb.set_rgb(255, 0, 102))  # Pinkish-red color
+        self.set_brightness(40)
 
     def mood_focus(self):
-        self.bulb.set_rgb(255, 255, 255)  # Pure white
-        self.bulb.set_brightness(100)
+        self._run_in_parallel(lambda bulb: bulb.set_rgb(255, 255, 255))  # Pure white
+        self.set_brightness(100)
 
     def mood_relax(self):
-        self.bulb.set_rgb(135, 206, 235)  # Light sky blue
-        self.bulb.set_brightness(60)
+        self._run_in_parallel(lambda bulb: bulb.set_rgb(135, 206, 235))  # Light sky blue
+        self.set_brightness(60)
 
     def mood_movie(self):
-        self.bulb.set_rgb(255, 99, 71)  # Soft red-orange color
-        self.bulb.set_brightness(20)
+        self._run_in_parallel(lambda bulb: bulb.set_rgb(255, 99, 71))  # Soft red-orange color
+        self.set_brightness(20)
 
     def mood_disco(self):
         transitions = [RGBTransition(255, 20, 147, duration=300),
-                       RGBTransition(75, 0, 130, duration=300),
-                       RGBTransition(255, 69, 0, duration=300)]
+                    RGBTransition(75, 0, 130, duration=300),
+                    RGBTransition(255, 69, 0, duration=300)]
         flow = Flow(count=0, transitions=transitions)
-        self.bulb.start_flow(flow)
+        self._run_in_parallel(lambda bulb: bulb.start_flow(flow))
 
     def mood_reading(self):
-        self.bulb.set_rgb(255, 239, 213)  # Warm white color
-        self.bulb.set_brightness(80)
+        self._run_in_parallel(lambda bulb: bulb.set_rgb(255, 239, 213))  # Warm white color
+        self.set_brightness(80)
 
     def mood_software_engineering(self):
         transitions = [
@@ -72,116 +165,96 @@ class YeelightController:
             RGBTransition(0, 255, 0, duration=2000)      # Green
         ]
         flow = Flow(count=0, transitions=transitions)
-        self.bulb.start_flow(flow)
+        self._run_in_parallel(lambda bulb: bulb.start_flow(flow))
 
     # New Normal Mode
-    # Dynamic "Normal" Mode with Random Transitions
     def mood_normal(self):
+        # Define three different lists of colors for different times of the day
+
+        # Morning colors: Lightish orange, yellow, and bright colors
+        morning_colors = [
+            (255, 165, 0),    # Orange
+            (255, 223, 186),  # Light orange-white
+            (255, 255, 240),  # Warm white
+            (255, 183, 76),   # Goldenrod
+            (250, 214, 165),  # Apricot
+            (255, 239, 213),  # Warm peach
+            (255, 250, 205),  # Light yellow
+            (255, 245, 238),  # Seashell
+            (255, 240, 245),  # Lavender blush
+        ]
+
+        # Daytime colors: Bright, natural white and super bright colors
+        daytime_colors = [
+            (255, 255, 240),  # Warm white
+            (255, 255, 224),  # Light yellow-white
+            (255, 250, 250),  # Snow white
+            (255, 255, 255),  # Pure white
+            (250, 250, 240),  # Ivory
+            (245, 245, 245),  # Light grayish white
+            (240, 248, 255),  # Alice blue
+            (255, 255, 245),  # Soft white
+            (250, 240, 230),  # Linen white
+        ]
+
+        # Evening/Night colors: Blue, purple, and dark colors
+        evening_colors = [
+            (0, 0, 128),   # Navy blue
+            (0, 0, 139),   # Dark blue
+            (0, 0, 205),   # Medium dark blue
+            (0, 0, 255),   # Bright blue
+            (25, 25, 112), # Midnight blue
+            (0, 51, 102),  # Deep sea blue
+            (0, 0, 180),   # Rich dark blue
+            (0, 0, 170),   # Sapphire blue
+        ]
+
+
+        last_color = None  # Initially, no color is set
+
         while True:
             current_time = datetime.now().hour
 
-            if 6 <= current_time < 9:  # Morning: Gradually increasing brightness and warm color
-                transition_options = [
-                    [RGBTransition(255, 165, 0, duration=1000),   # Soft orange
-                     # Light orange-white
-                     RGBTransition(255, 223, 186, duration=3000),
-                     RGBTransition(255, 255, 240, duration=5000)],  # Warm white
+            # Randomly choose a color based on the time of day
+            if 6 <= current_time < 9:  # Morning
+                color_list = morning_colors
+            elif 9 <= current_time < 17:  # Daytime
+                color_list = daytime_colors
+            else:  # Evening/Night
+                color_list = evening_colors
 
-                    [RGBTransition(255, 183, 76, duration=1000),   # Goldenrod
-                     RGBTransition(255, 228, 181, duration=3000),  # Moccasin
-                     RGBTransition(255, 255, 210, duration=5000)],  # Light yellow
+            # Pick a random color from the chosen list
+            next_color = random.choice(color_list)
+            print(next_color, 'next')
+            print(last_color, 'last')
 
-                    [RGBTransition(250, 214, 165, duration=1000),  # Apricot
-                     RGBTransition(255, 239, 213, duration=3000),  # Warm peach
-                     RGBTransition(255, 250, 240, duration=5000)]   # Linen
-                ]
-                chosen_transitions = random.choice(transition_options)
-                self.bulb.start_flow(
-                    Flow(count=1, transitions=chosen_transitions))
-                self.set_brightness(80)
+            # Ensure we don't transition to the same color
+            if next_color == last_color:
+                next_color = random.choice([color for color in color_list if color != last_color])
 
-            elif 9 <= current_time < 17:  # Daytime: Bright, natural colors transitioning slowly
-                transition_options = [
-                    [RGBTransition(255, 255, 240, duration=5000),  # Warm white
-                     # Soft yellow-white
-                     RGBTransition(255, 255, 224, duration=5000),
-                     RGBTransition(255, 250, 205, duration=5000)],  # Light yellow
+            # Define the transition from the last color (if exists) to the next color
+            if last_color is not None:
+                transition = [RGBTransition(*last_color, duration=5000),  # Transition from last color
+                            RGBTransition(*next_color, duration=5000)]  # To the next color
+            else:
+                transition = [RGBTransition(*next_color, duration=5000)]  # Initial transition to the next color
+           
+            # Run the transition in parallel for all bulbs
+            flow = Flow(count=1, transitions=transition)
+            self._run_in_parallel(lambda bulb: bulb.start_flow(flow))
+            time.sleep(5)
+            self._run_in_parallel(lambda bulb: bulb.set_rgb(*next_color))
+            # time.sleep(3)
 
-                    [RGBTransition(255, 245, 238, duration=5000),  # Seashell
-                     RGBTransition(255, 239, 213, duration=5000),  # Warm white
-                     RGBTransition(255, 228, 181, duration=5000)],  # Moccasin
 
-                    [RGBTransition(255, 240, 245, duration=5000),  # Lavender blush
-                     RGBTransition(255, 250, 250, duration=5000),  # Snow white
-                     RGBTransition(250, 250, 210, duration=5000)]   # Light goldenrod yellow
-                ]
-                chosen_transitions = random.choice(transition_options)
-                self.bulb.start_flow(
-                    Flow(count=1, transitions=chosen_transitions))
-                self.set_brightness(100)
 
-            elif 17 <= current_time < 20:  # Evening: Warm, calming tones transitioning smoothly
-                transition_options = [
-                    [RGBTransition(255, 140, 0, duration=5000),    # Darker orange
-                     # Light salmon
-                     RGBTransition(255, 160, 122, duration=5000),
-                     RGBTransition(255, 228, 196, duration=5000)],  # Bisque
+            # After the flow finishes, set the LED to the final color (next_color)
+            
 
-                    [RGBTransition(255, 99, 71, duration=5000),    # Tomato
-                     RGBTransition(255, 127, 80, duration=5000),   # Coral
-                     RGBTransition(255, 165, 79, duration=5000)],  # Sandy brown
+            # Update last color to the current one
+            last_color = next_color
 
-                    [RGBTransition(255, 140, 105, duration=5000),  # Rosy brown
-                     RGBTransition(244, 164, 96, duration=5000),   # Sienna
-                     RGBTransition(205, 92, 92, duration=5000)]    # Indian red
-                ]
-                chosen_transitions = random.choice(transition_options)
-                self.bulb.start_flow(
-                    Flow(count=1, transitions=chosen_transitions))
-                self.set_brightness(70)
 
-            elif 20 <= current_time < 22:  # Late Evening: Cooler, relaxing tones with subtle transitions
-                transition_options = [
-                    [RGBTransition(173, 216, 230, duration=5000),  # Light blue
-                     RGBTransition(135, 206, 250, duration=5000),  # Sky blue
-                     RGBTransition(240, 248, 255, duration=5000)],  # Alice blue
-
-                    [RGBTransition(176, 196, 222, duration=5000),  # Light steel blue
-                     RGBTransition(70, 130, 180, duration=5000),   # Steel blue
-                     RGBTransition(176, 224, 230, duration=5000)],  # Powder blue
-
-                    [RGBTransition(0, 191, 255, duration=5000),    # Deep sky blue
-                     RGBTransition(65, 105, 225, duration=5000),   # Royal blue
-                     RGBTransition(135, 206, 235, duration=5000)]  # Light sky blue
-                ]
-                chosen_transitions = random.choice(transition_options)
-                self.bulb.start_flow(
-                    Flow(count=1, transitions=chosen_transitions))
-                self.set_brightness(50)
-
-            else:  # Night: Dimming blue light, with gradual reductions in brightness
-                transition_options = [
-                    [RGBTransition(25, 25, 112, duration=5000),    # Dim navy blue
-                     # Medium blue
-                     RGBTransition(0, 0, 128, duration=5000),
-                     RGBTransition(0, 0, 139, duration=5000)],     # Dark blue
-
-                    [RGBTransition(0, 0, 205, duration=5000),      # Medium blue
-                     RGBTransition(0, 0, 255, duration=5000),      # Blue
-                     RGBTransition(75, 0, 130, duration=5000)],    # Indigo
-
-                    [RGBTransition(0, 0, 139, duration=5000),      # Dark blue
-                     # Dim navy blue
-                     RGBTransition(25, 25, 112, duration=5000),
-                     RGBTransition(72, 61, 139, duration=5000)]    # Dark slate blue
-                ]
-                chosen_transitions = random.choice(transition_options)
-                self.bulb.start_flow(
-                    Flow(count=1, transitions=chosen_transitions))
-                self.set_brightness(30)
-
-            # Wait before the next update
-            time.sleep(300)  # Update every 5 minutes for smoother transitions
 
     # Everyday Functionalities
     def good_morning(self):

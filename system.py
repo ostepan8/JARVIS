@@ -9,6 +9,8 @@ from openai import OpenAI
 from elevenlabs.client import ElevenLabs
 from alarmclock import EventScheduler
 from swe import SoftwareEngineer
+import certifi
+from lights import YeelightController 
 # Load environment variables from the .env file
 load_dotenv()
 
@@ -18,6 +20,11 @@ api_key = os.getenv('ELEVEN_LABS_API_KEY')
 openai_api_key = os.getenv('OPENAI_API_KEY')
 uri = os.getenv('MONGO_URI')
 
+# Get Light Bulb Ip Addresses
+BEDROOM_1_YEELIGHT_IP_ADDRESS = os.getenv('BEDROOM_1_YEELIGHT_IP_ADDRESS')
+BEDROOM_2_YEELIGHT_IP_ADDRESS = os.getenv('BEDROOM_2_YEELIGHT_IP_ADDRESS')
+bedroom_ip_addresses= [BEDROOM_1_YEELIGHT_IP_ADDRESS,BEDROOM_2_YEELIGHT_IP_ADDRESS]
+
 # Initialize MongoDB client, database, and other clients
 mongo_client = None
 db = None
@@ -26,10 +33,11 @@ elevenlabs_client = None
 scheduler = None
 swe = None
 time_zone = None
+light_controller = None
 
 
 async def initialize():
-    global time_zone, mongo_client, db, openai_client, elevenlabs_client, scheduler, swe
+    global time_zone, mongo_client, db, openai_client, elevenlabs_client, scheduler, swe,light_controller
 
     print("Initializing system core modules...")
 
@@ -37,7 +45,7 @@ async def initialize():
     if mongo_client is None:
         try:
             print("Connecting to secure database...")
-            mongo_client = MongoClient(uri, server_api=ServerApi('1'))
+            mongo_client = MongoClient(uri, server_api=ServerApi('1'), tlsCAFile=certifi.where())
             mongo_client.admin.command('ping')
             print("Database connection established.")
             db = mongo_client["JARVIS"]
@@ -51,6 +59,9 @@ async def initialize():
         except Exception as e:
             print("Error in Software Engineering")
             raise e
+    if light_controller is None:
+        light_controller = YeelightController(bedroom_ip_addresses)
+        print("Attained Control of the Lights")
     # Initialize OpenAI client
     if openai_client is None:
         try:
@@ -70,7 +81,6 @@ async def initialize():
     if scheduler is None:
         try:
             time_zone = get_location_timezone()
-            print(time_zone)
             scheduler = EventScheduler(time_zone=time_zone)
             print("Schedule calibrated.")
         except Exception as e:

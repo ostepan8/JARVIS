@@ -22,24 +22,48 @@ def simple_ask_gpt(message):
     return completion.choices[0].message.content
 
 
-def ask_gpt(question, user_personalized=False, previous_interactions=False, user_id="ostepan8", interaction_limit=0):
-    location_timezone = get_location_timezone()
-    if location_timezone:
-        # Convert the location timezone string to a pytz timezone object
-        tz = timezone(location_timezone)
+# Function to get the user's profile from the database
+def get_user_profile(user_id):
+    return user_collection.find_one({"user_id": user_id})
 
-        # Get the current time in the specified timezone
-        local_time = datetime.now(tz).strftime('%Y-%m-%d %I:%M %p')
+# Function to get recent interactions from the database
+def get_recent_interactions(interaction_limit):
+    recent_interactions = list(interactions_collection.find().sort("_id", -1).limit(interaction_limit))
+    if recent_interactions:
+        return "Recent Interactions: " + "; ".join(
+            [
+                f"[{interaction['timestamp'].strftime('%Y-%m-%d %H:%M:%S')}]: User said: '{interaction['user_input']}', Assistant responded: '{interaction['response']}'"
+                for interaction in recent_interactions
+            ]
+        )
+    return "No recent interactions found."
 
-        print(f"Local time in {location_timezone}: {local_time}")
-    else:
-        print("Could not determine local time.")
+# Function to get similar interactions based on the user's question
+def get_similar_interactions(question, interaction_limit):
+    similar_interactions = list(interactions_collection.find({
+        "user_input": {"$regex": question, "$options": "i"}
+    }).sort("_id", -1).limit(interaction_limit))
+    
+    if similar_interactions:
+        return "Similar Interactions: " + "; ".join(
+            [
+                f"[{interaction['timestamp'].strftime('%Y-%m-%d %H:%M:%S')}]: User said: '{interaction['user_input']}', Assistant responded: '{interaction['response']}'"
+                for interaction in similar_interactions
+            ]
+        )
+    return "No similar interactions found."
+
+# Main function that calls GPT and structures the conversation
+def ask_gpt(question, user_personalized=False, previous_interactions=False, similar_interactions=False, user_id="ostepan8", prev_interaction_limit=0):
+    local_time = get_location_timezone()
+
     if user_personalized:
-        user_profile = user_collection.find_one({"user_id": user_id})
+        user_profile = get_user_profile(user_id)
+    else:
+        user_profile = None
 
-    creator_string = ""
-    if user_personalized and user_profile:
-        creator_string = user_profile.get("name", "Owen Stepan")
+    creator_string = user_profile.get("name", "Owen Stepan") if user_profile else "Owen Stepan"
+
     # Initialize the base messages
     messages = [
         {
@@ -47,7 +71,7 @@ def ask_gpt(question, user_personalized=False, previous_interactions=False, user
             "content": (
                 "You are J.A.R.V.I.S., an intelligent assistant modeled after the AI from the Iron Man movies. "
                 f"Your job is to provide quick, concise, and accurate responses in a friendly and conversational tone, focusing on clarity and relevance to your creator, {creator_string}. "
-                f"Your creator is named Owen, not Tony Stark. Address him as Owen or {user_profile.get('preferred_title','sir')} in all communications. "
+                f"Your creator is named Owen, not Tony Stark. Address him as Owen or {user_profile.get('preferred_title', 'sir')} in all communications. "
                 f"{creator_string} is highly capable, so engage in natural, friendly dialogue, avoiding overly formal language or unnecessary details. "
                 "Speak as if you’re having a casual conversation between two highly intelligent individuals. "
                 "Use natural language, contractions, and expressions that make your responses feel relaxed and approachable. "
@@ -55,31 +79,22 @@ def ask_gpt(question, user_personalized=False, previous_interactions=False, user
                 "Keep it concise, engaging, and actionable, guiding rather than instructing, and always maintain a calm, confident demeanor."
             )
         },
-
-        {
-            "role": "system",
-            "content": f"The current local time is {local_time}."
-        }
+        {"role": "system", "content": f"The current local time is {local_time}."}
     ]
 
     if user_profile:
-        # Convert to a string format suitable for context
         user_data_str = f"User Profile: {user_profile}"
         messages.append({"role": "system", "content": user_data_str})
 
-    # Fetch the last 10 interactions if previous_interactions is True
+    # Add recent interactions if requested
     if previous_interactions:
-        recent_interactions = list(interactions_collection.find().sort(
-            "_id", -1).limit(interaction_limit))
-        if recent_interactions:
-            # Format the recent interactions into a readable string
-            interactions_str = "Recent Interactions: " + "; ".join(
-                [
-                    f"[{interaction['timestamp'].strftime('%Y-%m-%d %H:%M:%S')}]: User said: '{interaction['user_input']}', Assistant responded: '{interaction['response']}'"
-                    for interaction in recent_interactions
-                ]
-            )
-            messages.append({"role": "system", "content": interactions_str})
+        interactions_str = get_recent_interactions(prev_interaction_limit)
+        messages.append({"role": "system", "content": interactions_str})
+
+    # Add similar interactions if requested
+    if similar_interactions:
+        similar_interactions_str = get_similar_interactions(question)
+        messages.append({"role": "system", "content": similar_interactions_str})
 
     # Add the user's question
     messages.append({"role": "user", "content": question})
@@ -91,7 +106,6 @@ def ask_gpt(question, user_personalized=False, previous_interactions=False, user
     )
 
     return completion.choices[0].message.content
-
 
 def ask_json(question, user_personalized=False, previous_interactions=False, user_id="ostepan8", interaction_limit=0):
     local_time = datetime.now(timezone('US/Central')

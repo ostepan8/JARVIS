@@ -91,19 +91,14 @@ def generate_gpt_prompt(user_profile, user_input, response):
 
     serializable_profile = make_serializable(user_profile)
     user_name = user_profile.get('name', 'the user')
-
     gpt_prompt = (
-    f"Update the user profile: {json.dumps(serializable_profile)}. "
-    f"Based on the user's last input: '{user_input}' and your previous response to their input: '{response}', suggest only necessary updates to improve your understanding of their life and how you interact with them. "
-    "Focus on learning about the user's personal life, relationships, interests, and preferences to build a more detailed and holistic profile. "
-    "Include information that directly affects your style, tone, or manner of response, and which will help you better understand and anticipate their needs. "
-    "Avoid including details that are irrelevant to future conversations, such as scheduling or previous interactions (both are stored elsewhere), and do not make assumptions beyond the provided information. "
-    "Your goal is to remember as much as possible about the user, similar to how J.A.R.V.I.S. knows Tony Stark intimately. "
-    "Return the updated profile in JSON format, or the unchanged profile if no updates are needed."
-)
-
-
-
+        f"Update the user profile: {json.dumps(serializable_profile)}. "
+        f"Based on the user's last input: '{user_input}' and your previous response: '{response}', suggest only factual updates about the user's personal background, preferences, or identity. "
+        "Focus strictly on relevant and verifiable details about the user, such as their interests, personality, family, favorite foods, music tastes, hobbies, location, and other concrete personal attributes. "
+        "Do not include information related to specific interactions or temporary details, such as scheduling, moods, or conversational history, as they are irrelevant for the long-term profile. "
+        "Only provide updates that are general facts or consistent personal preferences. Do not make assumptions or add any speculative details. "
+        "Return the updated profile in JSON format, or the unchanged profile if no updates are needed."
+    )
 
 
     return gpt_prompt

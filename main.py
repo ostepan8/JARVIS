@@ -30,25 +30,30 @@ USER = "sir"
 scheduler = get_scheduler()
 
 
+from elevenlabs import save
+
 def speak(text):
     try:
-        audio = elevenlabs_client.generate(text=text, voice="George")
-        play(audio)
+        # audio = elevenlabs_client.generate(text=text, voice="George")
+        # save(audio, "test-output.mp3")
+        print("done")
     except Exception as e:
         print(f"Error in speak function: {e}")
 
 
 
-def play_beep():
-    frequency = 1000  # Frequency of the beep (in Hz)
-    duration = 0.2  # Duration of the beep (in seconds)
-    sample_rate = 44100
-    t = np.linspace(0, duration, int(sample_rate * duration), False)
-    beep = np.sin(frequency * 2 * np.pi * t)
-    beep *= 32767 / np.max(np.abs(beep))
-    beep = beep.astype(np.int16)
-    play_obj = sa.play_buffer(beep, 1, 2, sample_rate)
-    play_obj.wait_done()
+
+
+# def play_beep():
+#     frequency = 1000  # Frequency of the beep (in Hz)
+#     duration = 0.2  # Duration of the beep (in seconds)
+#     sample_rate = 44100
+#     t = np.linspace(0, duration, int(sample_rate * duration), False)
+#     beep = np.sin(frequency * 2 * np.pi * t)
+#     beep *= 32767 / np.max(np.abs(beep))
+#     beep = beep.astype(np.int16)
+#     play_obj = sa.play_buffer(beep, 1, 2, sample_rate)
+#     play_obj.wait_done()
 
 
 def takeCommand():
@@ -104,6 +109,7 @@ def ConversationFlow(test_mode=False, user_id="ostepan8"):
         # Remove any characters that aren't part of the alphabet
         intent = re.sub(r'[^a-zA-Z\s]', '', intent)
         response = ""
+        should_store= False
         if intent == "Remove from schedule":
             response = handle_remove_from_schedule(
                 userSaid, take_command=input, speak=jarvis_output)
@@ -122,12 +128,13 @@ def ConversationFlow(test_mode=False, user_id="ostepan8"):
             handle_tv_command(userSaid)
             response = "On it, sir"
         elif intent == "Software Project Management and Help":
-            swe.handle_swe_input(userSaid, jarvis_input, jarvis_output)
+            response, should_store_swe_output = swe.handle_swe_input(userSaid, jarvis_input, jarvis_output)
+            should_store = should_store_swe_output
         elif intent == "File System":
             handle_file_system(userSaid)
         elif intent == 'Control Home Lights':
             light_controller.handle_input(userSaid)
-
+            response = "On it, sir"
             
 
             # response = handle_home_automation(userSaid)
@@ -151,14 +158,21 @@ def ConversationFlow(test_mode=False, user_id="ostepan8"):
             # speak(diagnostics_response)
 
         else:
-            response = ask_gpt(userSaid, user_personalized=True,
+            response = ask_gpt(userSaid, user_personalized=True,similar_interactions=True,
                                previous_interactions=True, interaction_limit=10)
+            should_store= True
         jarvis_output(response)
-        return
-        store_interaction(user_id, userSaid, response, intent)
-        thread = threading.Thread(
-            target=analyze_and_update_profile, args=(user_id, userSaid, response))
-        thread.start()
+        if(should_store):
+            thread_store_interaction = threading.Thread(
+                target=store_interaction, args=(user_id, userSaid, response, intent)
+            )
+            thread_store_interaction.start()
+
+        # Analyze and update profile on a separate thread
+        thread_analyze_profile = threading.Thread(
+            target=analyze_and_update_profile, args=(user_id, userSaid, response)
+        )
+        thread_analyze_profile.start()
 
 
 def main(test=False):

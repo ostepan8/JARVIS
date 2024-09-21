@@ -11,8 +11,9 @@ class YeelightController:
     def handle_input(self, userSaid):
         from ask_gpt import classify_intent
         light_intent = classify_intent(
-            userSaid, ["Turn on lights", "Turn off lights", "Change color", "Good morning", "Good night", "Party mode", "Relax mode", "Focus mode", "Movie mode", "Disco mode", "Reading mode", "Romantic mode", "Normal mode"]
+            userSaid, ["Turn on lights", "Turn off lights", "Change color", "Good morning", "Good night", "Party mode", "Relax mode", "Focus mode", "Movie mode", "Disco mode", "Reading mode", "Romantic mode", "Normal mode","Software Engineering mode"]
         )
+        print("INTENT", light_intent)
 
         # Dictionary to map intents to their respective functions
         intent_map = {
@@ -27,7 +28,8 @@ class YeelightController:
             "Disco mode": self.mood_disco,
             "Reading mode": self.mood_reading,
             "Romantic mode": self.mood_romantic,
-            "Normal mode": self.mood_normal
+            "Normal mode": self.mood_normal,
+            "Software Engineering mode": self.mood_software_engineering
         }
 
         # Handle the intent
@@ -90,6 +92,7 @@ class YeelightController:
     # Basic Actions
     def turn_on(self):
         self._run_in_parallel(lambda bulb: bulb.turn_on())
+        self.mood_normal()
 
     def turn_off(self):
         self._run_in_parallel(lambda bulb: bulb.turn_off())
@@ -159,13 +162,16 @@ class YeelightController:
         self.set_brightness(80)
 
     def mood_software_engineering(self):
-        transitions = [
-            RGBTransition(0, 0, 255, duration=2000),     # Blue
-            RGBTransition(255, 165, 0, duration=2000),   # Orange
-            RGBTransition(0, 255, 0, duration=2000)      # Green
-        ]
-        flow = Flow(count=0, transitions=transitions)
-        self._run_in_parallel(lambda bulb: bulb.start_flow(flow))
+        while(True):
+            transitions = [
+                RGBTransition(0, 0, 255, duration=2000),     # Blue
+                RGBTransition(255, 165, 0, duration=2000),   # Orange
+                RGBTransition(0, 255, 0, duration=2000)      # Green
+            ]
+            flow = Flow(count=0, transitions=transitions)
+
+            self._run_in_parallel(lambda bulb: bulb.start_flow(flow))
+            time.sleep(2)
 
     # New Normal Mode
     def mood_normal(self):
@@ -225,8 +231,7 @@ class YeelightController:
 
             # Pick a random color from the chosen list
             next_color = random.choice(color_list)
-            print(next_color, 'next')
-            print(last_color, 'last')
+
 
             # Ensure we don't transition to the same color
             if next_color == last_color:

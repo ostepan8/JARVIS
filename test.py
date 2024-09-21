@@ -1,17 +1,14 @@
 import asyncio
 from system import initialize
-from lights import YeelightController
-import os
-from dotenv import load_dotenv
+asyncio.run(initialize())  # noqa
+from swe import SoftwareEngineer
+# Example usage of the create_protocol function
+# Create an instance of SoftwareEngineer
+software_engineer = SoftwareEngineer()
 
-
-load_dotenv()
-
-BEDROOM_1_YEELIGHT_IP_ADDRESS = os.getenv('BEDROOM_1_YEELIGHT_IP_ADDRESS')
-BEDROOM_2_YEELIGHT_IP_ADDRESS = os.getenv('BEDROOM_2_YEELIGHT_IP_ADDRESS')
-bedroom_light_controller = YeelightController([BEDROOM_1_YEELIGHT_IP_ADDRESS,BEDROOM_2_YEELIGHT_IP_ADDRESS])
-bedroom_light_controller.mood_normal()
-
+# Find a protocol by name
+protocol_name = "Create Function"
+found_protocol = print(software_engineer.handle_input("Create a react native cover screen file on my desktop called 'TitlePage.js'"))
 
 
 # import subprocess

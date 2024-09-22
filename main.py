@@ -34,8 +34,8 @@ from elevenlabs import save
 
 def speak(text):
     try:
-        # audio = elevenlabs_client.generate(text=text, voice="George")
-        # save(audio, "test-output.mp3")
+        audio = elevenlabs_client.generate(text=text, voice="George")
+        play(audio)
         print("done")
     except Exception as e:
         print(f"Error in speak function: {e}")

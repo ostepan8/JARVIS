@@ -1,14 +1,28 @@
 import asyncio
 from system import initialize
 asyncio.run(initialize())  # noqa
-from swe import SoftwareEngineer
+
+
+
+
+from elevenlabs import play
+from system import elevenlabs_client
+audio = elevenlabs_client.generate(text="On it, sir", voice="George")
+play(audio)
+
+# import asyncio
+# from system import initialize
+# asyncio.run(initialize())  # noqa
+# from swe import SoftwareEngineer
+# from system import light_controller
+# light_controller.change_color("blue")
 # Example usage of the create_protocol function
 # Create an instance of SoftwareEngineer
-software_engineer = SoftwareEngineer()
+# software_engineer = SoftwareEngineer()
 
 # Find a protocol by name
-protocol_name = "Create Function"
-found_protocol = print(software_engineer.handle_input("Create a react native cover screen file on my desktop called 'TitlePage.js'"))
+# protocol_name = "Create Function"
+# found_protocol = print(software_engineer.handle_input("Create a react native cover screen file on my desktop called 'TitlePage.js'"))
 
 
 # import subprocess

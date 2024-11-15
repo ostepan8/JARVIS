@@ -1,6 +1,11 @@
 from datetime import datetime
-from system import openai_client, get_db, get_location_timezone
+from system import openai_client, get_db, get_local_time_string,get_location_timezone
 from pytz import timezone
+import re
+import spacy
+
+# Load the spaCy model
+nlp = spacy.load("en_core_web_sm")
 # Initialize database connection
 db = get_db()
 
@@ -38,12 +43,49 @@ def get_recent_interactions(interaction_limit):
         )
     return "No recent interactions found."
 
-# Function to get similar interactions based on the user's question
-def get_similar_interactions(question, interaction_limit):
-    similar_interactions = list(interactions_collection.find({
-        "user_input": {"$regex": question, "$options": "i"}
-    }).sort("_id", -1).limit(interaction_limit))
+
+# Function to extract keywords using spaCy
+def extract_keywords(text):
+    # Process the text using spaCy
+    doc = nlp(text)
     
+    # Extract keywords: Nouns, Proper Nouns, Verbs, Named Entities
+    keywords = set()
+    
+    # Named entities
+    for ent in doc.ents:
+        keywords.add(ent.text)
+    
+    # Nouns and Verbs
+    for token in doc:
+        if token.pos_ in ("NOUN", "PROPN", "VERB"):
+            keywords.add(token.lemma_)  # Use lemma to get base form (e.g., "knew" -> "know")
+    
+    return list(keywords)
+
+# Function to get similar interactions based on the user's question
+def get_similar_interactions(question, interaction_limit=None):
+    # Extract keywords from the question
+    key_phrases = extract_keywords(question)
+    
+    # Build a regex pattern to match any of the extracted keywords
+    if key_phrases:
+        regex_pattern = ".*" + ".*|.*".join(re.escape(phrase) for phrase in key_phrases) + ".*"
+    else:
+        # If no key phrases are found, use a broad query
+        regex_pattern = ".*" + re.escape(question) + ".*"
+    
+    # Query the collection for interactions containing the key phrases
+    query = {
+        "user_input": {"$regex": regex_pattern, "$options": "i"}
+    }
+    similar_interactions = None
+    if(interaction_limit != None):
+        similar_interactions = list(interactions_collection.find(query).sort("_id", -1).limit(interaction_limit))
+    else:
+        similar_interactions = list(interactions_collection.find(query).sort("_id", -1))
+    
+    # Format the results
     if similar_interactions:
         return "Similar Interactions: " + "; ".join(
             [
@@ -53,9 +95,10 @@ def get_similar_interactions(question, interaction_limit):
         )
     return "No similar interactions found."
 
+
 # Main function that calls GPT and structures the conversation
-def ask_gpt(question, user_personalized=False, previous_interactions=False, similar_interactions=False, user_id="ostepan8", prev_interaction_limit=0):
-    local_time = get_location_timezone()
+def ask_gpt(question, user_personalized=False, previous_interactions=False, similar_interactions=False, user_id="ostepan8", prev_interaction_limit=0, extra_data=""):
+    time_string = get_local_time_string()
 
     if user_personalized:
         user_profile = get_user_profile(user_id)
@@ -63,41 +106,42 @@ def ask_gpt(question, user_personalized=False, previous_interactions=False, simi
         user_profile = None
 
     creator_string = user_profile.get("name", "Owen Stepan") if user_profile else "Owen Stepan"
+    preferred_name = user_profile.get("preferred_title", "sir") if user_profile else "sir"
+    extra_prompt = f"An oracle provided you with this relevant data: '{extra_data}'." if extra_data else ""
+
 
     # Initialize the base messages
-    messages = [
-        {
-            "role": "system",
-            "content": (
-                "You are J.A.R.V.I.S., an intelligent assistant modeled after the AI from the Iron Man movies. "
-                f"Your job is to provide quick, concise, and accurate responses in a friendly and conversational tone, focusing on clarity and relevance to your creator, {creator_string}. "
-                f"Your creator is named Owen, not Tony Stark. Address him as Owen or {user_profile.get('preferred_title', 'sir')} in all communications. "
-                f"{creator_string} is highly capable, so engage in natural, friendly dialogue, avoiding overly formal language or unnecessary details. "
-                "Speak as if you’re having a casual conversation between two highly intelligent individuals. "
-                "Use natural language, contractions, and expressions that make your responses feel relaxed and approachable. "
-                "Avoid code snippets, diagrams, graphs, lists, bullet points, or any form of structured formatting. "
-                "Keep it concise, engaging, and actionable, guiding rather than instructing, and always maintain a calm, confident demeanor."
-            )
-        },
-        {"role": "system", "content": f"The current local time is {local_time}."}
-    ]
+    base_message = (
+        "You are J.A.R.V.I.S., an intelligent assistant modeled after the AI from the Iron Man movies. "
+        f"Your job is to provide quick, concise, and accurate responses in a friendly and conversational tone, focusing on clarity and relevance to your creator, {creator_string}. "
+        f"Your creator is named {creator_string}, not Tony Stark, however you MUST address him as his {preferred_name} in all communications. "
+        f"{creator_string} is highly capable, so engage in natural, friendly dialogue, avoiding overly formal language or unnecessary details. "
+        "Speak as if you’re having a casual conversation between two highly intelligent individuals. "
+        "Use natural language, contractions, and expressions that make your responses feel relaxed and approachable. "
+        "Avoid code snippets, diagrams, graphs, lists, bullet points, or any form of structured formatting. "
+        "Please spell out any symbols that you use, as they will be spoken not seen (degrees, math operators, etc)"
+        "Keep it concise, engaging, and actionable, guiding rather than instructing, and always maintain a calm, confident demeanor. "
+        f"The current local time is {time_string}, which should be one of the most relevant pieces of context. "
+    )
+
 
     if user_profile:
-        user_data_str = f"User Profile: {user_profile}"
-        messages.append({"role": "system", "content": user_data_str})
+        base_message += f"User Profile: {user_profile}. "
 
-    # Add recent interactions if requested
     if previous_interactions:
-        interactions_str = get_recent_interactions(prev_interaction_limit)
-        messages.append({"role": "system", "content": interactions_str})
+        interactions_str = f"Past {prev_interaction_limit} interactions: "+ get_recent_interactions(prev_interaction_limit)
+        base_message += interactions_str +" "
 
-    # Add similar interactions if requested
     if similar_interactions:
-        similar_interactions_str = get_similar_interactions(question)
-        messages.append({"role": "system", "content": similar_interactions_str})
+        similar_interactions_str = "Similar previous interactions found: " + get_similar_interactions(question) +" "
+        base_message += similar_interactions_str
+    base_message += extra_prompt
 
-    # Add the user's question
-    messages.append({"role": "user", "content": question})
+    base_message += f" Use all of this information to craft a response that answers this main question: {question}"
+
+
+    messages = [{"role": "system", "content": base_message}]
+
 
     # Call GPT model to generate response
     completion = openai_client.chat.completions.create(
@@ -178,6 +222,9 @@ def get_main_intent(text, categories, previous_interactions=True):
                 "Similarly, if a recent interaction involved controlling a TV, give higher weight to categories like 'Control Home TV'. "
                 "Remember that 'recurring schedule' refers to events that happen regularly (such as daily, weekly, or monthly), and that 'Finding a remote' counts as 'Control Home TV'. "
                 "Under no circumstances should you provide explanations, multiple categories, or any text other than the name of the category. Your response must be a single string containing only one of the categories."
+                "If the prompt seems as though the microphone caught audio that does not make sense or is clearly background audio, return the 'Audio Transcription Fail' intent."
+                "NOTE: Any mention of a working directory/project directory or talk of a working environment has to do with the Software intent."
+
             )
         },
         {"role": "user", "content": text}
@@ -208,7 +255,7 @@ def get_main_intent(text, categories, previous_interactions=True):
         model="gpt-4o-mini",
         messages=messages,
         max_tokens=50,
-        temperature=0.2
+        temperature=0
     )
 
     # Correctly access the content of the response
@@ -233,6 +280,7 @@ def classify_intent(text, categories, context_message=None, model="gpt-4o-mini")
     system_message = context_message if context_message else (
         "Classify the following sentence into one of these categories: "
         f"{', '.join(categories)}."
+        "ONLY RETURN THE STRING OF THE INTENT AND NOTHING ELSE."
     )
 
     messages = [
@@ -244,7 +292,7 @@ def classify_intent(text, categories, context_message=None, model="gpt-4o-mini")
         model=model,
         messages=messages,
         max_tokens=50,
-        temperature=0.2
+        temperature=0
     )
 
     # Extract the classified intent
@@ -292,42 +340,59 @@ def extract_event_and_time(text, take_command=None, speak=None, model="gpt-4o-mi
     - is_homework (bool): Whether the event is homework-related.
     """
     from datetime import datetime
-    import re
     import pytz
 
-    # Determine the user's time zone
     user_timezone_str = get_location_timezone()
     if user_timezone_str:
         user_timezone = pytz.timezone(user_timezone_str)
     else:
-        print("Could not determine time zone; using default 'US/Central'.")
         user_timezone = pytz.timezone('US/Central')
 
     # Get the current date and time in the user's time zone
     now = datetime.now(user_timezone)
     # Includes date, time, and timezone abbreviation
-    date_string = now.strftime("%Y-%m-%d %I:%M %p %Z")
+    date_string = now.strftime("%A, %Y-%m-%d %I:%M %p %Z")
+
+    print(date_string)
 
     # Construct the recurrence part of the string
     recurrence_part = (
-        ", Recurring: [recurrence]'. Format the recurrence pattern as 'weekly Weekday/weekly Weekday' "
-        "using the exact format without any variations. Ensure that each weekday is prefixed with 'weekly' "
-        "and separated by a single '/' without any spaces."
+        ", Recurring: [recurrence]. Format the recurrence pattern exactly as 'weekly Weekday/weekly Weekday'. "
+        "Ensure that each weekday is prefixed with 'weekly' and separated by a single '/' without any spaces. "
+        "Do not use any other format for recurrence information."
         if recurrence else ""
     )
 
+
     # Base prompt for extracting event details
     prompt = (
-        f"Today is {date_string}. Extract event details from this sentence: '{text}'. "
-        "Format as 'Event: [event], Year: [year], Month: [month], Day: [day], "
-        f"Hour: [hour in 12-hour format], Minute: [minute (2 digits)], Period: [AM/PM], "
-        f"Duration: [duration], Homework: [homework]{recurrence_part}. "
-        "Set 'Homework' to 'True' only if the event requires extra work or preparation (e.g., assignments). "
-        "Set 'Homework' to 'False' for classes, meetings, or events to simply attend. Keep the response concise."
+        f"Today is {date_string}. Extract event details from this sentence: '{text}'.\n"
+        "Always follow this exact format for the output: Event: [event], Year: [year], Month: [month], Day: [day], "
+        f"Hour: [hour in 12-hour format], Minute: [minute (2 digits)], Period: [AM/PM], Duration: [duration], Homework: [homework]{recurrence_part}'.\n"
+        "The 'Time' components must always be formatted numerically. So, the year, month, day, hour, minute (always 2 digits), and period (AM/PM) should output as numbers.\n"
+        "For 'Homework', set it to 'True' only if the event requires preparation or is an assignment. Set it to 'False' for events that do not require extra work.\n"
+        "Ensure the output strictly follows this format. Any deviation from the format or variation in language is incorrect.\n\n"
+        "Here are some example inputs and expected outputs to guide you. You must strictly follow these examples:\n\n"
+        "Input: 'Add a CHC meeting at 5:30pm next Wednesday.'\n"
+        "Current Date: '2024-09-26 11:00 AM CDT.'\n"
+        "Output: Event: CHC meeting, Year: 2024, Month: 10, Day: 2, Hour: 5, Minute: 30, Period: PM, Duration: TBD, Homework: False \n\n"
+        "Input: 'Add a meeting tomorrow at 2pm.'\n"
+        "Current Date: '2024-09-26 11:00 AM CDT.'\n"
+        "Output: Event: meeting, Year: 2024, Month: 9, Day: 27, Hour: 2, Minute: 00, Period: PM, Duration: TBD, Homework: False \n\n"
+        "Input: 'Meeting on October 28th at 3pm.'\n"
+        "Current Date: '2024-09-26 11:00 AM CDT.'\n"
+        "Output: Event: meeting, Year: 2024, Month: 10, Day: 28, Hour: 3, Minute: 00, Period: PM, Duration: TBD, Homework: False \n\n"
+        "Input: 'Add a recurring yoga session every Monday at 6am.'\n"
+        "Current Date: '2024-09-26 11:00 AM CDT.'\n"
+        "Output: Event: yoga session, Year: 2024, Month: 9, Day: 30, Hour: 6, Minute: 00, Period: AM, Duration: TBD, Homework: False, Recurring: weekly Monday \n\n"
+        "Input: 'Doctor's appointment on the 15th of October at 9:45am.'\n"
+        "Current Date: '2024-09-26 11:00 AM CDT.'\n"
+        "Output: Event: Doctor's appointment, Year: 2024, Month: 10, Day: 15, Hour: 9, Minute: 45, Period: AM, Duration: TBD, Homework: False \n\n"
+        "Please follow the exact format for the given input. Any deviation will be considered incorrect."
     )
 
     messages = [
-        {"role": "system", "content": "You are a highly intelligent assistant tasked with extracting event details from text."},
+        {"role": "system", "content": "You are a highly intelligent assistant tasked with extracting event details from text. Make sure to always match the examples given. Follow the output format exactly as specified without any variation."},
         {"role": "user", "content": prompt}
     ]
 
@@ -335,12 +400,13 @@ def extract_event_and_time(text, take_command=None, speak=None, model="gpt-4o-mi
         model=model,
         messages=messages,
         max_tokens=150,
-        temperature=0.2
+        temperature=0
     )
 
     extracted_info = response.choices[0].message.content.strip()
 
     response_object = (parse_event_string(extracted_info))
+    print(response_object)
 
     # Initialize default values
     event_name = response_object.get('event', 'Unnamed Event')
@@ -375,7 +441,7 @@ def extract_event_and_time(text, take_command=None, speak=None, model="gpt-4o-mi
 
     # Combine into a time string with AM/PM
     if recurrence:
-        time_string = f"{hour} {period}"  # Adjusted to avoid double formatting
+        time_string = f"{hour}:{minute} {period}" 
     else:
         time_string = f"{year}-{month}-{day} {hour}:{minute} {period}"
 
@@ -421,7 +487,7 @@ def extract_time_from_string(time_input, model="gpt-4o-mini"):
         model=model,
         messages=messages,
         max_tokens=50,
-        temperature=0.2
+        temperature=0
     )
 
     extracted_info = response.choices[0].message.content.strip()
@@ -470,7 +536,7 @@ def schedule_retriever_interpreter(text, take_command=None, speak=None, model="g
         model=model,
         messages=messages,
         max_tokens=50,  # Reduced token limit to save costs and enforce brevity
-        temperature=0.2
+        temperature=0
     )
 
     # Get the extracted response from the model

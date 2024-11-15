@@ -4,8 +4,9 @@ from concurrent.futures import ThreadPoolExecutor
 from ask_gpt import extract_event_and_time, schedule_retriever_interpreter
 from datetime import datetime
 import pytz
-from system import get_db, get_location_timezone
+from system import get_db, get_location_timezone,get_local_time_string
 db = get_db()
+
 
 events_collection = db['schedule']
 recurring_events_collection = db['recurring']
@@ -316,6 +317,8 @@ def get_event_and_time(user_input, take_command=None, speak=None, recurrence=Fal
 def handle_add_to_schedule(user_input, take_command=None, speak=None):
     event_name, event_time, recurrence, duration, is_homework = get_event_and_time(
         user_input, take_command, speak)
+
+
     if not event_time:
         return "Sorry, I couldn’t determine the time for that event."
     if not event_name:
@@ -511,8 +514,12 @@ def handle_retrieve_recurring_information(user_input, take_command=None, speak=N
 
 def summarize_events(userSaid: str, jarvis_input, jarvis_output):
     from ask_gpt import ask_gpt
-    events_summary = handle_retrieve_events(
+    try:
+        events_summary = handle_retrieve_events(
         userSaid, take_command=jarvis_input, speak=jarvis_output)
+    except:
+        return "Unable to find schedule information."
+    
 
     # Get the timezone string from the function
     timezone_str = get_location_timezone()
@@ -523,14 +530,16 @@ def summarize_events(userSaid: str, jarvis_input, jarvis_output):
 
     # Construct the prompt with the correct weekday and time
     question = (
-        f"J.A.R.V.I.S., provide a response to Tony Stark's request in a concise, natural, and conversational tone. "
-        f"Today is {current_time.strftime('%A')}, and the current time is {current_time.strftime('%I:%M %p')}. "
-        f"Ensure that events are sorted by their start time, mentioning only those that are relevant to today and have not yet occurred. "
-        f"Be cautious about mentioning any events that are currently happening at the time of input. "
-        f"Use the event summary as a guide, but exclude any recurring events or dates that are not explicitly requested. "
-        f"Avoid using any lists, bullet points, or unnecessary formatting. Keep your response focused and succinct. "
-        f"The original request was: '{userSaid}'. The event summary is: '{events_summary}'."
-    )
+    f"J.A.R.V.I.S., please provide a concise and conversational summary of the events requested by Owen Stepan. "
+    f"Today is {current_time.strftime('%A')}, and the current time is {get_local_time_string()}. "
+    f"Ensure the events are ordered strictly by their start time, with priority given to those that are upcoming or currently happening. "
+    f"Exclude any past events, irrelevant recurring events, or events that have already started but are not explicitly requested. "
+    f"Events should be mentioned only if they are relevant to today's schedule and have not yet occurred. "
+    f"Please avoid unnecessary details, keep the response succinct, and ensure a natural flow without lists or bullet points. "
+    f"The original request was: '{userSaid}'. Use this event summary to guide the response: '{events_summary}'."
+    "Don't ask follow up questions."
+)
+
 
     # Call ask_gpt to generate a JARVIS-like response
     response = ask_gpt(question, user_personalized=True)

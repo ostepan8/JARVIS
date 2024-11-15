@@ -1,10 +1,18 @@
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime, timedelta
 from pytz import utc, timezone
+import json
 
 
 class EventScheduler:
+    email_sender = None
+    reminder_collection = None
     def __init__(self, time_zone='US/Central'):
+        from system import email_sender
+        from system import get_db
+        self.email_sender = email_sender
+        db = get_db()
+        self.reminder_collection = db['reminders']
         # Initialize the scheduler
         self.scheduler = BackgroundScheduler(timezone=utc)
         self.scheduler.start()
@@ -23,14 +31,11 @@ class EventScheduler:
 
         from scheduling import get_upcoming_events
         events = get_upcoming_events(recurr=False)
-
         # Get the current time in the specified time zone
         current_time = datetime.now(self.time_zone)
-
         # Separate events into past and future arrays
         past_events = []
         future_events = []
-
         for event in events:
             # Parse the event time to a timezone-aware datetime object
             event_time = self.parse_event_time(event['event_time'])
@@ -58,8 +63,6 @@ class EventScheduler:
         - callback: The function to call when the alarm triggers.
         - event_name: The name of the event.
         """
-        from pytz import utc
-        from datetime import datetime
 
         # Define your local timezone (e.g., 'America/Chicago')
         local_tz = self.time_zone
@@ -79,8 +82,7 @@ class EventScheduler:
             callback,
             'date',
             run_date=event_time_utc,
-            # Make sure the args match the function's parameters
-            args=[event_name]
+            args=[]
         )
         print(
             f"Alarm set for: {event_time_local.strftime('%Y-%m-%d %I:%M %p')} Eastern Time - Event: {event_name}")
@@ -281,25 +283,128 @@ class EventScheduler:
 
         return formatted_time
 
+
+
     def schedule_next_earliest_event(self):
         """
         Find the next earliest event and schedule an alarm for it.
         """
+        from ask_gpt import simple_ask_gpt
         # Find the next earliest event
-        next_event, time_of_next_event = self.find_next_earliest_event()
-
-        if next_event:
-            self.event = next_event
-            self.schedule_alarm(
-                time_of_next_event, self.wake_up_alarm, next_event.get("description"))
-        else:
+        next_event, event_time = self.find_next_earliest_event()
+        print(next_event, event_time, "FIRST EVENT")
+        
+        if not next_event:
             print("Nothing scheduled for today.")
+            return
+         # Construct the message for GPT prompt
+        event_description = next_event.get('description', '')
 
-    def wake_up_alarm(self, event_name):
+        # Construct the message for GPT to determine alarm time
+        prompt_message = (
+            f"I have an event called {event_description} with at the following time:\n{event_time}\n"
+            "Please provide the best alarm time for this event. The usual reminder time is 30 minutes before, "
+            "but use context clues (e.g., airport trip needs more time)."
+            " ONLY provide the alarm time in the exact format 'YYYY-MM-DD HH:MM AM/PM' with no additional text."
+        )
+
+        # Get alarm time from GPT
+        gpt_response = simple_ask_gpt(prompt_message)
+
+        # Parse GPT response for alarm time
+        alarm_time = gpt_response.strip()  
+        print(alarm_time, "ALARM_TIME")
+        alarm_time = "2024-11-15 12:53 AM"
+
+        # Define the callback function to be called when the alarm triggers
+        def callback():
+            self.wake_up_alarm(next_event=next_event)
+
+        # Schedule the alarm
+        self.event = next_event
+        self.schedule_alarm(alarm_time, callback, next_event.get("description"))
+
+        print(f"Alarm set for event '{next_event.get('description')}' at {alarm_time}")
+
+    def wake_up_alarm(self, next_event):
+        from system import city, region, country, get_local_time_string
+        from ask_gpt import simple_ask_gpt
+        from information_retrieval.weather import get_weather
+        
         """
         The function that will be called when the alarm goes off.
         """
-        print(f"Wake up! It's time for: {event_name}")
+        
+        # Fetch data
+        event_description = next_event.get("description", "an event")
+        event_time = next_event.get("event_time", "sometime")
+        weather_data = get_weather()
+        current_time = get_local_time_string()
+
+        # Create the prompt using an f-string
+        prompt = (
+            f"You are JARVIS, the highly intelligent and sophisticated AI assistant, akin to the one from the Iron Man movies. "
+            f"You are waking up Owen Stepan, your creator, in a manner befitting your character—calm, witty, and efficient. "
+            f"Given an event titled '{event_description}' scheduled at '{event_time}', your task is to craft a personalized wake-up message that "
+            f"gently rouses Owen, updates him on the event, and provides essential information with a touch of charm. "
+            f"Be professional yet conversational, ensuring your message feels as though it’s part of a seamless morning routine. "
+            f"Keep your response succinct, under 15 seconds of speaking, as clarity and brevity are key. "
+            f"Here is the weather data for {city}, {region}, {country}: {weather_data}. "
+            f"Here is the current time: {current_time}. "
+            f"Speak as if you are directly addressing Owen in the most engaging and futuristic way possible, embodying the spirit of JARVIS. "
+            f"ONLY RESPOND IN WORDS, SO NO SYMBOLS OR NUMBERS (no +, 1, 0, 100, /, \, OR ANY OTHER SYMBOL ), SINCE YOUR OUTPUT WILL BE SPOKEN ALOUD."
+            f"Note: don't use celsius, use fahrenheit."
+        )
+
+
+        # Debug print to check the prompt
+        print(prompt)
+
+        # Send the prompt to GPT and handle the response
+        response = simple_ask_gpt(prompt)
+        print(response)
+
+        # Output the response using JARVIS's output function
+        from conversation_flow import jarvis_output
+        jarvis_output(response)
+
+        # Convert the event to string for context
+
+
+        # event_str = json.dumps(next_event, default=str)
+
+        # # Construct the message for GPT prompt
+        # prompt_message = (
+        #     f"I have an upcoming event with the following details:\n{event_str}\n"
+        #     "Please generate an email reminder for this event, including the following details in JSON format:\n"
+        #     "- 'subject': The subject of the email\n"
+        #     "- 'address': The recipient email address (you can make it blank if not needed)\n"
+        #     "- 'body': The body content of the email describing the event and the time\n"
+        #     "e.g., earlier for an airport trip)"
+        # )
+        # print(prompt_message)
+
+        # # Get response from GPT
+        # gpt_response = simple_ask_gpt(prompt_message)
+        # print(gpt_response, "gpt-res")
+
+        # # Parse GPT response (assuming GPT returns structured JSON)
+        # try:
+        #     response_data = json.loads(gpt_response)
+        #     subject = response_data.get("subject", "Reminder for your upcoming event")
+        #     address = response_data.get("address", "")
+        #     body = response_data.get("body", f"Reminder: {next_event.get('description')} at {next_event.get('event_time')}")
+        # except json.JSONDecodeError:
+        #     # Handle error if GPT response is not a valid JSON
+        #     print("Error: Unable to parse GPT response")
+        #     return
+
+
+        # self.email_sender.send_email(
+        #     to_address=address,
+        #     subject=subject,
+        #     body=body
+        # )
 
         # After the alarm triggers, schedule the next one after some time
         self.initialize()

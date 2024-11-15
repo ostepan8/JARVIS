@@ -1,7 +1,6 @@
 from yeelight import *
 import datetime
 from concurrent.futures import ThreadPoolExecutor
-import string
 import time
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.date import DateTrigger
@@ -59,37 +58,38 @@ class YeelightController:
             print("No matching intent")
             return "Command not recognized, sir"
 
+
+
     def change_color(self, userSaid):
-        # Define a dictionary of basic colors with their RGB values
-        color_map = {
-            "red": (255, 0, 0),
-            "green": (0, 255, 0),
-            "blue": (0, 0, 255),
-            "yellow": (255, 255, 0),
-            "purple": (144, 0, 255),
-            "orange": (255, 149, 0),
-            "pink": (255, 0, 242),
-            "white": (255, 255, 255),
-            "warm white": (255, 244, 229),
-            "cyan": (0, 255, 255),
-        }
+        from ask_gpt import simple_ask_gpt
 
-        # Split the user's input into words
-        words = userSaid.split()
+        # Ask GPT to get the RGB value for the color
+        prompt = f"""
+            You are a color expert. You will receive a textual input describing a color. 
+            Your task is to output an RGB value set in the format (R, G, B) based on the given color description.
+            If the color description is vague or doesn't make sense, respond with 'None'.
 
-        # Remove punctuation from words
-        cleaned_words = [word.strip(string.punctuation) for word in words]
-
-        # Loop through each cleaned word and check if it's in the color map
-        for word in cleaned_words:
-            lower_word = word.lower()
-            if lower_word in color_map:
-                rgb_value = color_map[lower_word]
-                # Apply the color to all bulbs using parallel execution
-                self._run_in_parallel(lambda bulb: bulb.set_rgb(*rgb_value))
-                return
+            Example inputs and outputs:
+            1. "light blue" -> (173, 216, 230)
+            2. "dark red" -> (139, 0, 0)
+            3. "banana yellow" -> (255, 255, 102)
+            4. "bright orange" -> (255, 165, 0)
+            5. "unknown color" -> None
             
-        print(f"Color in input '{userSaid}' not recognized.")
+            Here is the color description: "{userSaid}"
+            
+            Return the RGB value or 'None'.
+            """
+        gpt_rgb_response = simple_ask_gpt(prompt)
+        # Check if GPT provided an RGB value or None
+        if gpt_rgb_response != 'None':
+            # Parse the GPT response into a tuple (R, G, B)
+            rgb_value = eval(gpt_rgb_response)
+            # Apply the color to all bulbs using parallel execution
+            self._run_in_parallel(lambda bulb: bulb.set_rgb(*rgb_value))
+        else:
+            print(f"Color in input '{userSaid}' not recognized.")
+
 
     def _run_in_parallel(self, func, *args, **kwargs):
         try:
@@ -146,28 +146,27 @@ class YeelightController:
 
     def mood_normal(self):
         try:
-
             current_time = datetime.datetime.now().time()
 
-            # Define moods based on time ranges
+            # Define moods based on time ranges with updated colors
             if current_time >= datetime.time(self.INTERVAL_MORNING, 0) and current_time < datetime.time(self.INTERVAL_AFTERNOON, 0):
-                rgb_value = (255, 223, 186)  # Warm light
+                rgb_value = (255, 165, 0)  # Vibrant orange for the morning
             elif current_time >= datetime.time(self.INTERVAL_AFTERNOON, 0) and current_time < datetime.time(self.INTERVAL_EVENING, 0):
-                rgb_value = (255, 255, 255)  # Bright light
+                rgb_value = (255, 223, 0)  # Bright yellow for the afternoon
             elif current_time >= datetime.time(self.INTERVAL_EVENING, 0) and current_time < datetime.time(22, 0):
-                rgb_value = (173, 216, 230)  # Cool blue
+                rgb_value = (0, 0, 139)  # Dark blue for early night
             else:
-                rgb_value = (255, 192, 203)  # Dimmed warm light
-            
+                rgb_value = (25, 25, 112)  # Midnight blue for late night
 
             # Apply the mood to all bulbs using parallel execution asynchronously
             self._run_in_parallel(lambda bulb: bulb.set_rgb(*rgb_value))
-            
+
             # Schedule the next mood update
             self.schedule_next_update()
 
         except Exception as e:
             print(f"Error in mood_normal: {e}")
+
 
     def turn_off(self):
         self._run_in_parallel(lambda bulb: bulb.turn_off())

@@ -36,6 +36,7 @@ def jarvis_input(prompt_message: str) -> str:
 
 def jarvis_output(prompt_message: str):
     from system import test_mode
+    print(prompt_message, "message", test_mode)
     return print(prompt_message) if test_mode else speak(prompt_message, "Arabella")
 
 def ConversationFlow(command,authenticated,test_mode=False, user_id="ostepan8"):
